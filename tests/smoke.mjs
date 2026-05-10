@@ -202,6 +202,22 @@ try {
   assert.equal(removedField.kind, "select");
   assert.deepEqual(removedField.rows, [{ id: "doc-2" }]);
 
+  const deletePreview = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-2" DELETE doc RETURN doc.id AS id', {
+    dryRun: true,
+  });
+  assert.equal(deletePreview.kind, "update");
+  assert.equal(deletePreview.dryRun, true);
+  assert.deepEqual(deletePreview.rows, [{ id: "doc-2" }]);
+  assert.equal(deletePreview.changes.some((change) => change.operation === "delete" && change.alias === "doc"), true);
+
+  const deleted = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-2" DELETE doc RETURN doc.id AS id');
+  assert.equal(deleted.kind, "update");
+  assert.deepEqual(deleted.rows, [{ id: "doc-2" }]);
+
+  const deletedField = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-2" RETURN doc.id AS id');
+  assert.equal(deletedField.kind, "select");
+  assert.deepEqual(deletedField.rows, []);
+
   await assertAdminServer(storageDirectory);
 } finally {
   await rm(storageDirectory, { recursive: true, force: true });

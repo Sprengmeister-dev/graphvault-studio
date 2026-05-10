@@ -652,7 +652,8 @@ OFFSET 0</textarea>
           'MATCH (item)-[:owner]->(owner) WHERE owner.name = "Platform Team" RETURN item.title AS title',
           'MATCH (item) WHERE item.status = "draft" SET item.status = "archived" RETURN count(*) AS changed',
           'MATCH (item) WHERE item.status = "published" SET item.views = (item.views + $increment) * 2 RETURN item.id AS id, item.views AS views',
-          'MATCH (item) WHERE item.archivedAt IS NOT NULL REMOVE item.archivedAt RETURN count(*) AS changed'
+          'MATCH (item) WHERE item.archivedAt IS NOT NULL REMOVE item.archivedAt RETURN count(*) AS changed',
+          'MATCH (item) WHERE item.status = "archived" DELETE item RETURN item.id AS id'
         ]
       });
     }
