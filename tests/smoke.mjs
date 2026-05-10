@@ -119,6 +119,12 @@ try {
   assert.equal(notWhere.kind, "select");
   assert.deepEqual(notWhere.rows, [{ id: "doc-1" }]);
 
+  const computedReturn = await client.gvql("MATCH (doc:Document) RETURN doc.id AS id, (doc.views + $bonus) * 2 AS score ORDER BY score DESC LIMIT 1", {
+    parameters: { bonus: 3 },
+  });
+  assert.equal(computedReturn.kind, "select");
+  assert.deepEqual(computedReturn.rows, [{ id: "doc-2", score: 54 }]);
+
   const multiOrder = await client.gvql("MATCH (doc:Document) RETURN doc.status AS status, count(*) AS count GROUP BY doc.status ORDER BY count DESC, status ASC");
   assert.equal(multiOrder.kind, "select");
   assert.deepEqual(multiOrder.rows, [

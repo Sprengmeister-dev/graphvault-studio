@@ -647,6 +647,7 @@ OFFSET 0</textarea>
           'MATCH (item) WHERE item.id = "missing" OR item.status = "published" RETURN item.id AS id, item.status AS status',
           'MATCH (item) WHERE (item.status = "draft" OR item.status = "published") AND item.views > 20 RETURN item.id AS id, item.status AS status, item.views AS views',
           'MATCH (item) WHERE NOT (item.status = "published" OR item.views < 10) RETURN item.id AS id, item.status AS status, item.views AS views',
+          'MATCH (item) RETURN item.id AS id, (item.views + $bonus) * 2 AS score ORDER BY score DESC LIMIT 25',
           'MATCH (item) RETURN item.status AS status, count(*) AS count GROUP BY item.status HAVING count > 1 ORDER BY count DESC, status ASC',
           'MATCH (item) RETURN item.status AS status, count(*) AS count, avg(item.views) AS avgViews GROUP BY item.status HAVING NOT (status = "published" OR avgViews < 10) ORDER BY status ASC',
           'MATCH (item)-[:owner]->(owner) WHERE owner.name = "Platform Team" RETURN item.title AS title',
