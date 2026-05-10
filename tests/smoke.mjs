@@ -79,6 +79,15 @@ try {
   assert.deepEqual(multiIndex.rows, [{ id: "doc-2" }]);
   assert.equal(multiIndex.plan.propertyIndexes.length, 2);
 
+  const indexedIn = await client.gvql(
+    'MATCH (doc:Document) WHERE doc.status IN ["draft", "published"] AND doc.id IN ["doc-1", "doc-2"] RETURN doc.id AS id ORDER BY doc.id ASC',
+  );
+  assert.equal(indexedIn.kind, "select");
+  assert.deepEqual(indexedIn.rows, [{ id: "doc-1" }, { id: "doc-2" }]);
+  assert.equal(indexedIn.plan.candidateSource, "property-index");
+  assert.equal(indexedIn.plan.operations.includes("property-index-union:status:2"), true);
+  assert.equal(indexedIn.plan.operations.includes("property-index-union:id:2"), true);
+
   const multiOrder = await client.gvql("MATCH (doc:Document) RETURN doc.status AS status, count(*) AS count GROUP BY doc.status ORDER BY count DESC, status ASC");
   assert.equal(multiOrder.kind, "select");
   assert.deepEqual(multiOrder.rows, [

@@ -175,6 +175,13 @@ ORDER BY doc.id ASC
 
 ```sql
 MATCH (doc:Document)
+WHERE doc.status IN ["draft", "published"] AND doc.id IN ["doc-1", "doc-2"]
+RETURN doc.id AS id, doc.status AS status
+ORDER BY doc.id ASC
+```
+
+```sql
+MATCH (doc:Document)
 WHERE doc.status = "draft"
 SET doc.status = "archived"
 RETURN count(*) AS changed

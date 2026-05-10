@@ -640,6 +640,7 @@ OFFSET 0</textarea>
           'MATCH (node) RETURN node LIMIT 25 OFFSET 0',
           'MATCH (item) RETURN DISTINCT item.status AS status ORDER BY status ASC',
           'MATCH (item) WHERE item.archivedAt IS NULL AND item.status IS NOT NULL RETURN item.id AS id, item.title AS title ORDER BY item.id ASC',
+          'MATCH (item) WHERE item.status IN ["draft", "published"] AND item.id IN ["doc-1", "doc-2"] RETURN item.id AS id, item.status AS status ORDER BY item.id ASC',
           'MATCH (item) RETURN item.status AS status, count(*) AS count GROUP BY item.status HAVING count > 1 ORDER BY count DESC, status ASC',
           'MATCH (item)-[:owner]->(owner) WHERE owner.name = "Platform Team" RETURN item.title AS title',
           'MATCH (item) WHERE item.status = "draft" SET item.status = "archived" RETURN count(*) AS changed',
