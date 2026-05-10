@@ -69,6 +69,10 @@ try {
   assert.deepEqual(distinct.rows, [{ status: "draft" }, { status: "published" }]);
   assert.equal(distinct.plan.distinct, true);
 
+  const nullFilter = await client.gvql("MATCH (doc:Document) WHERE doc.archivedAt IS NULL AND doc.status IS NOT NULL RETURN doc.id AS id ORDER BY doc.id ASC");
+  assert.equal(nullFilter.kind, "select");
+  assert.deepEqual(nullFilter.rows, [{ id: "doc-1" }, { id: "doc-2" }]);
+
   const multiIndex = await client.gvql('MATCH (doc:Document) WHERE doc.status = "published" AND doc.id = "doc-2" RETURN doc.id AS id');
   assert.equal(multiIndex.kind, "select");
   assert.deepEqual(multiIndex.rows, [{ id: "doc-2" }]);

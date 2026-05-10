@@ -168,6 +168,13 @@ ORDER BY status ASC
 
 ```sql
 MATCH (doc:Document)
+WHERE doc.archivedAt IS NULL AND doc.status IS NOT NULL
+RETURN doc.id AS id, doc.title AS title
+ORDER BY doc.id ASC
+```
+
+```sql
+MATCH (doc:Document)
 WHERE doc.status = "draft"
 SET doc.status = "archived"
 RETURN count(*) AS changed
@@ -186,7 +193,7 @@ ORDER BY count DESC, status ASC
 `Run / Preview` executes read queries and dry-runs updates. `Commit GVQL` applies update statements only when Studio was started with mutation support and the confirmation token matches.
 
 Each GVQL run includes an execution-plan row that shows whether Studio used a type index, primitive-property index, or full scan, plus candidate and returned-row counts. That makes slow queries much easier to tune before they become production habits.
-Use `LIMIT` and `OFFSET` in the console for predictable paging through large result sets. `RETURN DISTINCT` is useful when you want a compact list of values such as statuses, tenants, regions, or object categories.
+Use `LIMIT` and `OFFSET` in the console for predictable paging through large result sets. `RETURN DISTINCT` is useful when you want a compact list of values such as statuses, tenants, regions, or object categories. `IS NULL` and `IS NOT NULL` make optional fields easy to inspect.
 
 ## Relationship To GraphVault Library
 
