@@ -1,0 +1,46 @@
+{
+  "name": "graphvault-studio",
+  "version": "0.1.0",
+  "description": "Graphical admin client for GraphVault object graph stores.",
+  "type": "module",
+  "main": "./dist/admin.js",
+  "types": "./dist/admin.d.ts",
+  "bin": {
+    "graphvault-studio": "./dist/admin-cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/admin.d.ts",
+      "import": "./dist/admin.js"
+    }
+  },
+  "files": [
+    "assets",
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "graphvault",
+    "admin-ui",
+    "object-graph",
+    "storage-browser",
+    "typescript"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "graphvault": "github:Sprengmeister-dev/graphvault-library"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "typescript": "^5.8.3"
+  }
+}
