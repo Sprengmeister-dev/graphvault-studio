@@ -33,6 +33,7 @@ try {
   root.documents.push(new Document("doc-1", "Storage configuration", 12));
   const review = new Document("doc-2", "Admin review", 24);
   review.status = "published";
+  review.archivedAt = "2026-05-10";
   root.documents.push(review);
 
   const storage = await EmbeddedStorage.start({ storageDirectory, root, types });
@@ -71,7 +72,7 @@ try {
 
   const nullFilter = await client.gvql("MATCH (doc:Document) WHERE doc.archivedAt IS NULL AND doc.status IS NOT NULL RETURN doc.id AS id ORDER BY doc.id ASC");
   assert.equal(nullFilter.kind, "select");
-  assert.deepEqual(nullFilter.rows, [{ id: "doc-1" }, { id: "doc-2" }]);
+  assert.deepEqual(nullFilter.rows, [{ id: "doc-1" }]);
 
   const multiIndex = await client.gvql('MATCH (doc:Document) WHERE doc.status = "published" AND doc.id = "doc-2" RETURN doc.id AS id');
   assert.equal(multiIndex.kind, "select");
@@ -110,6 +111,22 @@ try {
   assert.equal(preview.dryRun, true);
   assert.equal(preview.changed, 1);
   assert.equal(preview.plan.candidateSource, "property-index");
+
+  const removePreview = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-2" REMOVE doc.archivedAt RETURN count(*) AS changed', {
+    dryRun: true,
+  });
+  assert.equal(removePreview.kind, "update");
+  assert.equal(removePreview.dryRun, true);
+  assert.equal(removePreview.changed, 1);
+  assert.equal(removePreview.changes[0].before, "2026-05-10");
+
+  const remove = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-2" REMOVE doc.archivedAt RETURN count(*) AS changed');
+  assert.equal(remove.kind, "update");
+  assert.equal(remove.changed, 1);
+
+  const removedField = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-2" AND doc.archivedAt IS NULL RETURN doc.id AS id');
+  assert.equal(removedField.kind, "select");
+  assert.deepEqual(removedField.rows, [{ id: "doc-2" }]);
 
   await assertAdminServer(storageDirectory);
 } finally {
