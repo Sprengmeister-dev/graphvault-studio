@@ -5,6 +5,7 @@ import { StorageReader } from "graphvault/internal/storage-reader";
 import { StorageWriter } from "graphvault/internal/storage-writer";
 import { verifyStorage } from "graphvault/internal/storage-verifier";
 import { buildParentIndexRecord } from "graphvault/internal/storage-parent-index";
+import { executeGvqlStatement, parseGvql } from "graphvault/internal/gvql";
 import { referencedChildren, summarizeNode, visitNode } from "./admin-inspection.js";
 import { encodeAdminValue, getNodePath, setNodePath } from "./admin-mutation.js";
 import { pathFromObjectToRoot } from "./admin-parent-index.js";
@@ -19,6 +20,7 @@ import type {
   TypeDictionary,
   VerificationResult,
 } from "graphvault/internal/types";
+import type { GvqlExecutionOptions, GvqlResult } from "graphvault/internal/gvql";
 
 import type {
   AdminGraph,
@@ -46,6 +48,7 @@ export type {
   AdminHierarchyPathItem,
   AdminMutation,
   AdminMutationPreview,
+  GvqlResult,
   AdminObjectChild,
   AdminObjectListItem,
   AdminObjectPage,
@@ -192,6 +195,38 @@ export class StorageAdminClient {
       }
     }
     return results;
+  }
+
+  async gvql(query: string, options: GvqlExecutionOptions = {}): Promise<GvqlResult> {
+    const manifest = await this.requireManifest();
+    const envelope = await this.reader.envelopeFromManifest(manifest);
+    const statement = parseGvql(query);
+    const result = executeGvqlStatement(envelope, statement, {
+      ...options,
+      allowMutations: this.allowMutations && statement.kind === "update" && !options.dryRun,
+    });
+    if (result.kind === "update" && !result.dryRun) {
+      const transactionId = manifest.transactionId + 1;
+      const snapshotFile = `snapshot-${String(transactionId).padStart(12, "0")}.json`;
+      const changedObjectIds = Array.from(new Set(result.changes.map((change) => change.objectId))).sort((a, b) => Number(a) - Number(b));
+      await this.writer.writeObjectRecords(envelope, transactionId, changedObjectIds);
+      await this.writer.writeManifest(envelope, transactionId);
+      await this.writer.writeParentIndex(envelope, transactionId);
+      await this.writer.writeJson(join(this.layout.snapshotsDirectory, snapshotFile), envelope);
+      await this.target.writeTextAtomic(this.layout.currentFile, snapshotFile);
+      await this.writer.writeTransactionRecord({
+        format: "graphvault-transaction",
+        version: 1,
+        transactionId,
+        committedAt: new Date().toISOString(),
+        snapshotFile,
+        objectIds: Object.keys(envelope.nodes).sort((a, b) => Number(a) - Number(b)),
+        mode: "standard",
+        targetCount: changedObjectIds.length,
+      });
+      this.parentIndex = undefined;
+    }
+    return result;
   }
 
   async listTransactions(): Promise<TransactionRecord[]> {

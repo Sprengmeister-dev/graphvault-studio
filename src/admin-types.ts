@@ -8,6 +8,8 @@ import type {
   VerificationResult,
 } from "graphvault/internal/types";
 
+export type { GvqlResult } from "graphvault/internal/gvql";
+
 export interface StorageAdminClientOptions {
   storageDirectory: string;
   storageTarget?: StorageTarget;

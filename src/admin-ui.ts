@@ -25,10 +25,11 @@ export const ADMIN_HTML = `<!doctype html>
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; }
     strong, b, .status, .panel-title, .mutation summary, .object-id, .tag, .field-name, .kpi strong { text-shadow: none; }
-    button, input, select { font: inherit; }
+    button, input, select, textarea { font: inherit; }
     button { border: 1px solid var(--line); background: #fff; border-radius: 7px; cursor: pointer; }
     button:hover { border-color: #98aab3; background: #f6fafb; }
-    input, select { width: 100%; padding: 10px 11px; border: 1px solid #b8c7ce; border-radius: 7px; background: #fff; }
+    input, select, textarea { width: 100%; padding: 10px 11px; border: 1px solid #b8c7ce; border-radius: 7px; background: #fff; }
+    textarea { min-height: 170px; resize: vertical; font-family: "SFMono-Regular", "Cascadia Code", "Roboto Mono", ui-monospace, monospace; line-height: 1.45; }
     .shell { display: grid; grid-template-columns: 268px minmax(0, 1fr); min-height: 100vh; }
     nav { padding: 18px 14px; background: radial-gradient(circle at 0 0, #23444f 0, var(--nav) 42%); color: #eaf1f3; display: grid; grid-template-rows: auto auto auto 1fr; gap: 18px; }
     .brand { display: grid; grid-template-columns: 54px 1fr; gap: 12px; align-items: center; padding: 4px 8px 10px; }
@@ -60,6 +61,9 @@ export const ADMIN_HTML = `<!doctype html>
     .mutation summary { cursor: pointer; font-weight: 600; }
     .mutation[open] { display: grid; gap: 8px; }
     .mutation-grid { display: grid; grid-template-columns: 90px 1fr 1fr 1fr; gap: 8px; }
+    .gvql-box { display: none; padding: 12px 14px; border-bottom: 1px solid var(--line); background: #f8fafb; gap: 8px; }
+    .gvql-box.active { display: grid; }
+    .gvql-actions { display: grid; grid-template-columns: 1fr minmax(130px, 180px) auto auto; gap: 8px; align-items: center; }
     .actions { display: flex; gap: 8px; justify-content: flex-end; }
     .primary { color: #fff; background: var(--accent); border-color: var(--accent); }
     .primary:hover { color: #fff; background: #0b7375; }
@@ -127,6 +131,7 @@ export const ADMIN_HTML = `<!doctype html>
         <button class="nav-btn" data-view="overview" onclick="showOverview()">Overview</button>
         <button class="nav-btn" data-view="objects" onclick="showObjects()">Objects</button>
         <button class="nav-btn" data-view="graph" onclick="showGraph()">Graph</button>
+        <button class="nav-btn" data-view="gvql" onclick="showGvql()">GVQL</button>
         <button class="nav-btn" data-view="types" onclick="showTypes()">Type Dictionary</button>
         <button class="nav-btn" data-view="transactions" onclick="showTransactions()">Transactions</button>
         <button class="nav-btn" data-view="journal" onclick="showJournal()">Journal</button>
@@ -160,6 +165,17 @@ export const ADMIN_HTML = `<!doctype html>
               </div>
               <div class="actions"><button onclick="preview()">Preview</button><button class="danger" onclick="mutate()">Commit Change</button></div>
             </details>
+            <div class="gvql-box" id="gvqlPanel">
+              <textarea id="gvqlQuery" spellcheck="false">MATCH (doc:Document)
+RETURN doc
+LIMIT 25</textarea>
+              <div class="gvql-actions">
+                <input id="gvqlParams" placeholder='Parameters JSON, e.g. {"status":"draft"}' />
+                <input id="gvqlConfirmToken" placeholder="Confirm token" />
+                <button onclick="runGvql(true)">Run / Preview</button>
+                <button class="danger" onclick="runGvql(false)">Commit GVQL</button>
+              </div>
+            </div>
             <div class="list" id="list"></div>
           </div>
           <div class="panel">
@@ -193,6 +209,7 @@ export const ADMIN_HTML = `<!doctype html>
       overview: ['Storage Overview', 'Health, object count, latest transaction, and current snapshot.'],
       objects: ['Objects', 'Browse graph records with type, preview, and transaction metadata.'],
       graph: ['Object Graph', 'Click nodes or edges to inspect referenced records.'],
+      gvql: ['GVQL Query', 'Run graph pattern queries and preview batch updates.'],
       types: ['Type Dictionary', 'Registered runtime types and schema metadata.'],
       transactions: ['Transactions', 'Newest commits first.'],
       journal: ['Journal', 'Append-only storage activity log.'],
@@ -211,6 +228,8 @@ export const ADMIN_HTML = `<!doctype html>
       document.querySelectorAll('.nav-btn').forEach(button => button.classList.toggle('active', button.dataset.view === name));
       title.textContent = viewText[name][0];
       subtitle.textContent = viewText[name][1];
+      const gvqlPanel = document.getElementById('gvqlPanel');
+      if (gvqlPanel) gvqlPanel.classList.toggle('active', name === 'gvql');
     }
     const setStatus = text => status.textContent = text;
     const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -609,6 +628,47 @@ export const ADMIN_HTML = `<!doctype html>
     };
     const runMaintenance = () => postJson('/api/maintenance', { keepSnapshots: 2 });
     const runBackup = () => postJson('/api/backup', { storageDirectory: document.getElementById('backupPath').value });
+    async function showGvql() {
+      setView('gvql');
+      listTitle.textContent = 'GVQL results';
+      listHint.textContent = 'MATCH / WHERE / RETURN / SET';
+      document.getElementById('gvqlPanel').classList.add('active');
+      setRows([], 'Run a GVQL query');
+      show({
+        examples: [
+          'MATCH (doc:Document) RETURN doc LIMIT 25',
+          'MATCH (doc:Document)-[:owner]->(owner:Owner) WHERE owner.name = "Platform Team" RETURN doc.title AS title',
+          'MATCH (doc:Document) WHERE doc.status = "draft" SET doc.status = "archived" RETURN count(*) AS changed'
+        ]
+      });
+    }
+    async function runGvql(dryRun) {
+      setView('gvql');
+      document.getElementById('gvqlPanel').classList.add('active');
+      const parametersText = document.getElementById('gvqlParams').value.trim();
+      const payload = {
+        query: document.getElementById('gvqlQuery').value,
+        parameters: parametersText ? JSON.parse(parametersText) : {},
+        dryRun
+      };
+      if (!dryRun && confirmRequired) payload.confirmToken = document.getElementById('gvqlConfirmToken').value;
+      const result = await postJson('/api/gvql', payload);
+      const rows = (result.rows || []).map((row, index) => ({
+        columns: [String(index + 1), result.kind || 'row', summarizeGvqlRow(row), result.dryRun ? 'preview' : 'result'],
+        onclick: () => show(row)
+      }));
+      if (result.kind === 'update' && result.changes) {
+        rows.push(...result.changes.slice(0, 200).map(change => ({
+          columns: ['#' + change.objectId, 'set', change.path + ': ' + change.before + ' -> ' + change.after, result.dryRun ? 'preview' : 'changed'],
+          onclick: () => show(change)
+        })));
+      }
+      setRows(rows, 'No GVQL results');
+      await refreshKpis();
+    }
+    function summarizeGvqlRow(row) {
+      return Object.entries(row).map(([key, value]) => key + ': ' + (typeof value === 'object' ? JSON.stringify(value) : String(value))).join(', ').slice(0, 220);
+    }
     async function showSearch() {
       setView('search');
       listTitle.textContent = 'Search results';

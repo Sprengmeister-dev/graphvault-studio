@@ -7,6 +7,7 @@ export type {
   AdminHierarchyPathItem,
   AdminMutation,
   AdminMutationPreview,
+  GvqlResult,
   AdminObjectChild,
   AdminObjectListItem,
   AdminObjectPage,

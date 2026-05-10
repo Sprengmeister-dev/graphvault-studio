@@ -110,6 +110,13 @@ async function route(client: StorageAdminClient, options: AdminServerOptions, re
   if (request.method === "POST" && url.pathname === "/api/preview-mutation") {
     return sendJson(response, 200, await client.previewMutation(await readJson(request)));
   }
+  if (request.method === "POST" && url.pathname === "/api/gvql") {
+    const body = await readJson(request);
+    if (body?.dryRun !== true && options.mutationConfirmToken && body?.confirmToken !== options.mutationConfirmToken) {
+      return sendJson(response, 403, { error: "GVQL mutation confirmation token is missing or invalid." });
+    }
+    return sendJson(response, 200, await client.gvql(String(body?.query ?? ""), { parameters: body?.parameters ?? {}, dryRun: body?.dryRun === true }));
+  }
   if (request.method === "POST" && url.pathname === "/api/mutate") {
     const body = await readJson(request);
     if (options.mutationConfirmToken && body?.confirmToken !== options.mutationConfirmToken) {

@@ -50,6 +50,17 @@ try {
   const page = await client.listObjectPage({ limit: 5 });
   assert.equal(page.total >= page.items.length, true);
 
+  const gvql = await client.gvql('MATCH (doc:Document) WHERE doc.title CONTAINS "Storage" RETURN doc.id AS id, doc.title AS title');
+  assert.equal(gvql.kind, "select");
+  assert.deepEqual(gvql.rows, [{ id: "doc-1", title: "Storage configuration" }]);
+
+  const preview = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-2" SET doc.status = "review" RETURN count(*) AS changed', {
+    dryRun: true,
+  });
+  assert.equal(preview.kind, "update");
+  assert.equal(preview.dryRun, true);
+  assert.equal(preview.changed, 1);
+
   await assertAdminServer(storageDirectory);
 } finally {
   await rm(storageDirectory, { recursive: true, force: true });
@@ -63,6 +74,14 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(response.status, 200);
     const apiSummary = await response.json();
     assert.equal(apiSummary.verification.ok, true);
+    const gvqlResponse = await fetch(`${server.url}/api/gvql`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ query: "MATCH (doc:Document) RETURN doc.id AS id LIMIT 2", dryRun: true }),
+    });
+    assert.equal(gvqlResponse.status, 200);
+    const apiGvql = await gvqlResponse.json();
+    assert.equal(apiGvql.kind, "select");
   } catch (error) {
     if (error?.code === "EPERM" && process.env.CI !== "true") {
       return;

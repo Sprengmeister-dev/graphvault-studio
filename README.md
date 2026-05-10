@@ -32,6 +32,7 @@ It is deliberately generic. It does not assume customers, orders, tickets, CMS p
 - support for objects with multiple direct parents
 - paged object browser for large stores
 - graph edge view
+- GVQL query console for graph queries and batch-update previews
 - editable primitive fields with preview and confirmation-token safety
 - verification, maintenance, backup, transaction and journal views
 - optional bearer-token protection
@@ -145,6 +146,26 @@ await startAdminServer({
 ```
 
 For mutation endpoints, always set `allowMutations: true` and a `mutationConfirmToken`. For exposed or shared environments, also set `authToken`.
+
+## GVQL
+
+Studio includes a GVQL console for GraphVault stores. It supports read queries and safe batch-update previews:
+
+```sql
+MATCH (doc:Document)-[:owner]->(owner:Owner)
+WHERE owner.name = "Platform Team"
+RETURN doc.id AS id, doc.title AS title
+LIMIT 25
+```
+
+```sql
+MATCH (doc:Document)
+WHERE doc.status = "draft"
+SET doc.status = "archived"
+RETURN count(*) AS changed
+```
+
+`Run / Preview` executes read queries and dry-runs updates. `Commit GVQL` applies update statements only when Studio was started with mutation support and the confirmation token matches.
 
 ## Relationship To GraphVault Library
 
