@@ -2,6 +2,8 @@
 
 GraphVault Studio is the graphical admin client for [GraphVault](https://github.com/Sprengmeister-dev/graphvault-library) stores. It lets you inspect, search, verify, maintain, back up, and carefully edit object graph data without pretending the store is a table database.
 
+![GraphVault Studio screenshot](./assets/studio-screenshot.png)
+
 ## Why Not Just Use A Normal Database Admin Tool?
 
 Database admin tools are great when your data is records, rows, documents, or key-value entries. GraphVault stores a live object graph: a root object, nested structures, references, shared children, multiple parents, class metadata, transactions, manifests, and object records. A normal SQL or document browser cannot show that shape honestly.
@@ -28,12 +30,29 @@ It is deliberately generic. It does not assume customers, orders, tickets, CMS p
 - editable primitive fields with preview and confirmation-token safety
 - verification, maintenance, backup, transaction and journal views
 - optional bearer-token protection
+- zero frontend build step; the UI is embedded in the TypeScript package
 
 ## Install
+
+From GitHub today:
+
+```bash
+npm install github:Sprengmeister-dev/graphvault-studio
+```
+
+Or pin the package name locally with an npm alias:
+
+```bash
+npm install graphvault-studio@github:Sprengmeister-dev/graphvault-studio
+```
+
+Once published to the npm registry:
 
 ```bash
 npm install graphvault-studio
 ```
+
+The npm name `graphvault-studio` is currently available. Publishing requires an npm login on the local machine.
 
 ## Run
 
@@ -125,3 +144,10 @@ For mutation endpoints, always set `allowMutations: true` and a `mutationConfirm
 ## Relationship To GraphVault Library
 
 The storage engine lives in [graphvault-library](https://github.com/Sprengmeister-dev/graphvault-library). Studio is intentionally separate so applications can depend on the lightweight persistence library without bundling an admin UI.
+
+## Developer Notes
+
+- Studio is a pure TypeScript package with no frontend build toolchain.
+- The UI is served from the embedded admin server, so `npx graphvault-studio --dir ./data` is enough to inspect a store.
+- The package depends on GraphVault Library for storage layout, verification, parent index reading, and storage targets.
+- Run `npm run build` to type-check and emit `dist/`.
