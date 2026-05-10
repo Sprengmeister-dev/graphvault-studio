@@ -99,6 +99,24 @@ try {
   assert.equal(optionalMatch.statement.optionalMatches.length, 1);
   assert.equal(optionalMatch.plan.operations.includes("optional-match:doc"), true);
 
+  const scalarFunctions = await client.gvql(
+    `
+      MATCH (doc:Document)
+      WHERE lower(doc.title) CONTAINS lower($needle)
+      RETURN doc.id AS id, upper(trim(doc.title)) AS title, length(doc.title) AS titleLength, coalesce(doc.archivedAt, "none") AS archived
+    `,
+    { parameters: { needle: "storage" } },
+  );
+  assert.equal(scalarFunctions.kind, "select");
+  assert.deepEqual(scalarFunctions.rows, [
+    {
+      id: "doc-1",
+      title: "STORAGE CONFIGURATION",
+      titleLength: "Storage configuration".length,
+      archived: "none",
+    },
+  ]);
+
   const paged = await client.gvql("MATCH (doc:Document) RETURN doc.id AS id ORDER BY doc.id ASC LIMIT 1 OFFSET 1");
   assert.equal(paged.kind, "select");
   assert.deepEqual(paged.rows, [{ id: "doc-2" }]);
