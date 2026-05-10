@@ -29,22 +29,29 @@
     "assets",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
+    "docs",
     "dist",
+    "examples",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node tests/smoke.mjs",
+    "demo:store": "npm run build && node examples/create-demo-store.mjs",
     "pack:dry-run": "npm pack --dry-run --cache ./.npm-cache",
     "prepack": "npm run build"
   },
   "keywords": [
     "graphvault",
     "admin-ui",
+    "database-admin",
+    "graph-database",
     "object-graph",
     "storage-browser",
-    "typescript"
+    "typescript",
+    "gvql",
+    "developer-tools"
   ],
   "license": "MIT",
   "engines": {
