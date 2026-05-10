@@ -166,8 +166,8 @@ export const ADMIN_HTML = `<!doctype html>
               <div class="actions"><button onclick="preview()">Preview</button><button class="danger" onclick="mutate()">Commit Change</button></div>
             </details>
             <div class="gvql-box" id="gvqlPanel">
-              <textarea id="gvqlQuery" spellcheck="false">MATCH (doc:Document)
-RETURN doc
+              <textarea id="gvqlQuery" spellcheck="false">MATCH (node)
+RETURN node
 LIMIT 25</textarea>
               <div class="gvql-actions">
                 <input id="gvqlParams" placeholder='Parameters JSON, e.g. {"status":"draft"}' />
@@ -631,14 +631,15 @@ LIMIT 25</textarea>
     async function showGvql() {
       setView('gvql');
       listTitle.textContent = 'GVQL results';
-      listHint.textContent = 'MATCH / WHERE / RETURN / SET';
+      listHint.textContent = 'MATCH / WHERE / RETURN / GROUP BY / HAVING / SET';
       document.getElementById('gvqlPanel').classList.add('active');
       setRows([], 'Run a GVQL query');
       show({
         examples: [
-          'MATCH (doc:Document) RETURN doc LIMIT 25',
-          'MATCH (doc:Document)-[:owner]->(owner:Owner) WHERE owner.name = "Platform Team" RETURN doc.title AS title',
-          'MATCH (doc:Document) WHERE doc.status = "draft" SET doc.status = "archived" RETURN count(*) AS changed'
+          'MATCH (node) RETURN node LIMIT 25',
+          'MATCH (item) RETURN item.status AS status, count(*) AS count GROUP BY item.status HAVING count > 1 ORDER BY count DESC',
+          'MATCH (item)-[:owner]->(owner) WHERE owner.name = "Platform Team" RETURN item.title AS title',
+          'MATCH (item) WHERE item.status = "draft" SET item.status = "archived" RETURN count(*) AS changed'
         ]
       });
     }

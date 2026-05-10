@@ -165,6 +165,16 @@ SET doc.status = "archived"
 RETURN count(*) AS changed
 ```
 
+Aggregate queries can be inspected directly in the same console:
+
+```sql
+MATCH (item)
+RETURN item.status AS status, count(*) AS count
+GROUP BY item.status
+HAVING count > 1
+ORDER BY count DESC
+```
+
 `Run / Preview` executes read queries and dry-runs updates. `Commit GVQL` applies update statements only when Studio was started with mutation support and the confirmation token matches.
 
 ## Relationship To GraphVault Library

@@ -13,10 +13,11 @@ class Workspace {
 }
 
 class Document {
-  constructor(id, title) {
+  constructor(id, title, views = 0) {
     this.id = id;
     this.title = title;
     this.status = "draft";
+    this.views = views;
   }
 }
 
@@ -29,8 +30,10 @@ const storageDirectory = await mkdtemp(join(tmpdir(), "graphvault-studio-smoke-"
 
 try {
   const root = new Workspace("Developer docs");
-  root.documents.push(new Document("doc-1", "Storage configuration"));
-  root.documents.push(new Document("doc-2", "Admin review"));
+  root.documents.push(new Document("doc-1", "Storage configuration", 12));
+  const review = new Document("doc-2", "Admin review", 24);
+  review.status = "published";
+  root.documents.push(review);
 
   const storage = await EmbeddedStorage.start({ storageDirectory, root, types });
   await storage.storeRoot();
@@ -53,6 +56,22 @@ try {
   const gvql = await client.gvql('MATCH (doc:Document) WHERE doc.title CONTAINS "Storage" RETURN doc.id AS id, doc.title AS title');
   assert.equal(gvql.kind, "select");
   assert.deepEqual(gvql.rows, [{ id: "doc-1", title: "Storage configuration" }]);
+
+  const aggregate = await client.gvql(
+    `
+      MATCH (doc:Document)
+      RETURN doc.status AS status, count(*) AS count, sum(doc.views) AS total
+      GROUP BY doc.status
+      HAVING count >= $minimum
+      ORDER BY total DESC
+    `,
+    { parameters: { minimum: 1 } },
+  );
+  assert.equal(aggregate.kind, "select");
+  assert.deepEqual(aggregate.rows, [
+    { status: "published", count: 1, total: 24 },
+    { status: "draft", count: 1, total: 12 },
+  ]);
 
   const preview = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-2" SET doc.status = "review" RETURN count(*) AS changed', {
     dryRun: true,
@@ -77,7 +96,10 @@ async function assertAdminServer(storageDirectory) {
     const gvqlResponse = await fetch(`${server.url}/api/gvql`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ query: "MATCH (doc:Document) RETURN doc.id AS id LIMIT 2", dryRun: true }),
+      body: JSON.stringify({
+        query: "MATCH (doc:Document) RETURN doc.status AS status, count(*) AS count GROUP BY doc.status HAVING count >= 1 ORDER BY count DESC",
+        dryRun: true,
+      }),
     });
     assert.equal(gvqlResponse.status, 200);
     const apiGvql = await gvqlResponse.json();
