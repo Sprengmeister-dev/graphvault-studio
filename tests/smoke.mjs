@@ -312,6 +312,32 @@ try {
   assert.equal(createdField.kind, "select");
   assert.deepEqual(createdField.rows, [{ title: "Release checklist", views: 9 }]);
 
+  const mergeExistingPreview = await client.gvql(
+    `
+      MATCH (workspace:Workspace)
+      WHERE workspace.name = "Developer docs"
+      MERGE (doc:Document { id: "doc-3", title: "Duplicate should not be created", status: "draft", views: 99 }) INTO workspace.documents ON doc.id
+      RETURN doc.id AS id, doc.title AS title, doc.views AS views
+    `,
+    { dryRun: true },
+  );
+  assert.equal(mergeExistingPreview.kind, "update");
+  assert.equal(mergeExistingPreview.changed, 0);
+  assert.deepEqual(mergeExistingPreview.rows, [{ id: "doc-3", title: "Release checklist", views: 9 }]);
+
+  const mergeNewPreview = await client.gvql(
+    `
+      MATCH (workspace:Workspace)
+      WHERE workspace.name = "Developer docs"
+      MERGE (doc:Document { id: "doc-4", title: "Idempotent import", status: "draft", views: 1 }) INTO workspace.documents ON doc.id
+      RETURN doc.id AS id, doc.title AS title
+    `,
+    { dryRun: true },
+  );
+  assert.equal(mergeNewPreview.kind, "update");
+  assert.deepEqual(mergeNewPreview.rows, [{ id: "doc-4", title: "Idempotent import" }]);
+  assert.equal(mergeNewPreview.changes.some((change) => change.operation === "merge" && change.alias === "doc"), true);
+
   await assertAdminServer(storageDirectory);
 } finally {
   await rm(storageDirectory, { recursive: true, force: true });
@@ -332,6 +358,7 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(html.includes("Scalar functions"), true);
     assert.equal(html.includes("CASE update"), true);
     assert.equal(html.includes("WITH pipeline"), true);
+    assert.equal(html.includes("MERGE into collection"), true);
     const gvqlResponse = await fetch(`${server.url}/api/gvql`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -356,6 +383,18 @@ async function assertAdminServer(storageDirectory) {
     const apiWith = await withResponse.json();
     assert.equal(apiWith.kind, "select");
     assert.equal(apiWith.plan.operations.includes("with-project"), true);
+    const mergeResponse = await fetch(`${server.url}/api/gvql`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        query: 'MATCH (workspace:Workspace) WHERE workspace.name = "Developer docs" MERGE (doc:Document { id: "doc-3", title: "Duplicate", status: "draft", views: 99 }) INTO workspace.documents ON doc.id RETURN doc.id AS id, doc.title AS title',
+        dryRun: true,
+      }),
+    });
+    assert.equal(mergeResponse.status, 200);
+    const apiMerge = await mergeResponse.json();
+    assert.equal(apiMerge.kind, "update");
+    assert.equal(apiMerge.changed, 0);
   } catch (error) {
     if (error?.code === "EPERM" && process.env.CI !== "true") {
       return;

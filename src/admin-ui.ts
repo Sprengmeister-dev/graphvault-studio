@@ -692,7 +692,7 @@ OFFSET 0</textarea>
       })));
       if (result.kind === 'update' && result.changes) {
         rows.push(...result.changes.slice(0, 200).map(change => ({
-          columns: ['#' + change.objectId, 'set', change.path + ': ' + change.before + ' -> ' + change.after, result.dryRun ? 'preview' : 'changed'],
+          columns: ['#' + change.objectId, change.operation || 'change', summarizeGvqlChange(change), result.dryRun ? 'preview' : 'changed'],
           onclick: () => show(change)
         })));
       }
@@ -701,6 +701,16 @@ OFFSET 0</textarea>
     }
     function summarizeGvqlRow(row) {
       return Object.entries(row).map(([key, value]) => key + ': ' + (typeof value === 'object' ? JSON.stringify(value) : String(value))).join(', ').slice(0, 220);
+    }
+    function summarizeGvqlChange(change) {
+      const path = change.path || '(object)';
+      return (path + ': ' + summarizeGvqlValue(change.before) + ' -> ' + summarizeGvqlValue(change.after)).slice(0, 220);
+    }
+    function summarizeGvqlValue(value) {
+      if (typeof value === 'undefined') return 'undefined';
+      if (value === null) return 'null';
+      if (typeof value === 'object') return JSON.stringify(value);
+      return String(value);
     }
     function summarizeGvqlPlan(plan) {
       return [

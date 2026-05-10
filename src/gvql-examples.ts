@@ -46,4 +46,5 @@ export const STUDIO_GVQL_EXAMPLES: StudioGvqlExample[] = [
   { name: "REMOVE field", query: "MATCH (item) WHERE item.archivedAt IS NOT NULL REMOVE item.archivedAt RETURN count(*) AS changed" },
   { name: "DELETE object", query: 'MATCH (item) WHERE item.status = "archived" DELETE item RETURN item.id AS id' },
   { name: "CREATE into collection", query: 'MATCH (workspace:Workspace) WHERE workspace.name = "Developer docs" CREATE (item:Document { id: "doc-4", title: "Release checklist", status: "draft", views: 0 }) INTO workspace.documents RETURN item.id AS id, item.title AS title' },
+  { name: "MERGE into collection", query: 'MATCH (workspace:Workspace) WHERE workspace.name = "Developer docs" MERGE (item:Document { id: "doc-4", title: "Release checklist", status: "draft", views: 0 }) INTO workspace.documents ON item.id RETURN item.id AS id, item.title AS title' },
 ];
