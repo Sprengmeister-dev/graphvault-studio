@@ -25,7 +25,15 @@ export const STUDIO_GVQL_EXAMPLES: StudioGvqlExample[] = [
     query: 'MATCH (item) WHERE lower(item.title) CONTAINS lower($needle) RETURN item.id AS id, upper(trim(item.title)) AS title, length(item.title) AS titleLength, coalesce(item.archivedAt, "none") AS archived ORDER BY item.id ASC',
     parameters: { needle: "storage" },
   },
+  {
+    name: "CASE buckets",
+    query: 'MATCH (item) WHERE item.status IS NOT NULL RETURN item.id AS id, CASE WHEN item.views >= 100 THEN "hot" WHEN item.archivedAt IS NOT NULL THEN "archived" ELSE "active" END AS bucket ORDER BY item.id ASC LIMIT 25',
+  },
   { name: "Preview SET", query: 'MATCH (item) WHERE item.status = "draft" SET item.status = "archived" RETURN count(*) AS changed' },
+  {
+    name: "CASE update",
+    query: 'MATCH (item) WHERE item.status IS NOT NULL SET item.status = CASE WHEN item.views >= 100 THEN "featured" WHEN item.archivedAt IS NOT NULL THEN "archived" ELSE item.status END RETURN item.id AS id, item.status AS status',
+  },
   { name: "Arithmetic SET", query: "MATCH (item) WHERE item.status = \"published\" SET item.views = (item.views + $increment) * 2 RETURN item.id AS id, item.views AS views", parameters: { increment: 5 } },
   { name: "REMOVE field", query: "MATCH (item) WHERE item.archivedAt IS NOT NULL REMOVE item.archivedAt RETURN count(*) AS changed" },
   { name: "DELETE object", query: 'MATCH (item) WHERE item.status = "archived" DELETE item RETURN item.id AS id' },
