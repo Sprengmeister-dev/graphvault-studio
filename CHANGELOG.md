@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- Patch npm package metadata so the `graphvault-studio` CLI binary is preserved on publish.
+
 ## 0.1.0
 
 - Initial GraphVault Studio package.
