@@ -115,6 +115,10 @@ try {
   assert.equal(parenthesizedWhere.kind, "select");
   assert.deepEqual(parenthesizedWhere.rows, [{ id: "doc-2" }]);
 
+  const notWhere = await client.gvql('MATCH (doc:Document) WHERE NOT (doc.status = "published" OR doc.views < 10) RETURN doc.id AS id');
+  assert.equal(notWhere.kind, "select");
+  assert.deepEqual(notWhere.rows, [{ id: "doc-1" }]);
+
   const multiOrder = await client.gvql("MATCH (doc:Document) RETURN doc.status AS status, count(*) AS count GROUP BY doc.status ORDER BY count DESC, status ASC");
   assert.equal(multiOrder.kind, "select");
   assert.deepEqual(multiOrder.rows, [
@@ -151,6 +155,18 @@ try {
   );
   assert.equal(parenthesizedHaving.kind, "select");
   assert.deepEqual(parenthesizedHaving.rows, [{ status: "published", count: 1, avgViews: 24 }]);
+
+  const notHaving = await client.gvql(
+    `
+      MATCH (doc:Document)
+      RETURN doc.status AS status, count(*) AS count, avg(doc.views) AS avgViews
+      GROUP BY doc.status
+      HAVING NOT (status = "published" OR avgViews < 10)
+      ORDER BY status ASC
+    `,
+  );
+  assert.equal(notHaving.kind, "select");
+  assert.deepEqual(notHaving.rows, [{ status: "draft", count: 1, avgViews: 12 }]);
 
   const preview = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-2" SET doc.status = "review" RETURN count(*) AS changed', {
     dryRun: true,

@@ -215,6 +215,12 @@ RETURN doc.id AS id, doc.status AS status, doc.views AS views
 
 ```sql
 MATCH (doc:Document)
+WHERE NOT (doc.status = "published" OR doc.views < 10)
+RETURN doc.id AS id, doc.status AS status, doc.views AS views
+```
+
+```sql
+MATCH (doc:Document)
 WHERE doc.status = "draft"
 SET doc.status = "archived"
 RETURN count(*) AS changed
@@ -244,10 +250,18 @@ HAVING count > 1
 ORDER BY count DESC, status ASC
 ```
 
+```sql
+MATCH (item)
+RETURN item.status AS status, count(*) AS count, avg(item.views) AS avgViews
+GROUP BY item.status
+HAVING NOT (status = "published" OR avgViews < 10)
+ORDER BY status ASC
+```
+
 `Run / Preview` executes read queries and dry-runs updates. `Commit GVQL` applies update statements only when Studio was started with mutation support and the confirmation token matches.
 
 Each GVQL run includes an execution-plan row that shows whether Studio used a type index, primitive-property index, indexed `OR` union, or full scan, plus candidate and returned-row counts. That makes slow queries much easier to tune before they become production habits.
-Use `LIMIT` and `OFFSET` in the console for predictable paging through large result sets. `RETURN DISTINCT` and `count(DISTINCT path)` are useful when you want compact lists or cardinality checks for values such as statuses, tenants, regions, types, or object categories. Parentheses in `WHERE` and `HAVING` make mixed `AND`/`OR` filters predictable. Arithmetic `SET` expressions make numeric batch updates previewable before commit. `IS NULL`, `IS NOT NULL`, and `REMOVE` make optional fields easy to inspect and clean up.
+Use `LIMIT` and `OFFSET` in the console for predictable paging through large result sets. `RETURN DISTINCT` and `count(DISTINCT path)` are useful when you want compact lists or cardinality checks for values such as statuses, tenants, regions, types, or object categories. Parentheses and `NOT` in `WHERE` and `HAVING` make mixed filters predictable. Arithmetic `SET` expressions make numeric batch updates previewable before commit. `IS NULL`, `IS NOT NULL`, and `REMOVE` make optional fields easy to inspect and clean up.
 
 ## Relationship To GraphVault Library
 
