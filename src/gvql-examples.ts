@@ -17,6 +17,14 @@ export const STUDIO_GVQL_EXAMPLES: StudioGvqlExample[] = [
   { name: "Computed score", query: "MATCH (item) RETURN item.id AS id, (item.views + $bonus) * 2 AS score ORDER BY score DESC LIMIT 25", parameters: { bonus: 5 } },
   { name: "Aggregate", query: "MATCH (item) RETURN item.status AS status, count(*) AS count GROUP BY item.status HAVING count > 1 ORDER BY count DESC, status ASC" },
   { name: "Aggregate NOT", query: 'MATCH (item) RETURN item.status AS status, count(*) AS count, avg(item.views) AS avgViews GROUP BY item.status HAVING NOT (status = "published" OR avgViews < 10) ORDER BY status ASC' },
+  {
+    name: "WITH pipeline",
+    query: "MATCH (item) WHERE item.status IS NOT NULL WITH item.status AS status, count(*) AS count, avg(item.views) AS avgViews GROUP BY item.status HAVING count > 0 RETURN status, count, avgViews ORDER BY count DESC",
+  },
+  {
+    name: "WITH filter",
+    query: 'MATCH (item) WHERE item.status IS NOT NULL WITH item.id AS id, CASE WHEN item.views >= 100 THEN "hot" WHEN item.archivedAt IS NOT NULL THEN "archived" ELSE "active" END AS bucket WHERE bucket = "hot" RETURN id, bucket ORDER BY id ASC',
+  },
   { name: "Traverse owner", query: 'MATCH (item)-[:owner]->(owner) WHERE owner.name = "Platform Team" RETURN item.title AS title' },
   { name: "Join patterns", query: 'MATCH (item)-[:owner]->(owner), (item)-[:category]->(category) WHERE owner.name = "Platform Team" AND category.slug = "guides" RETURN item.id AS id, item.title AS title, category.label AS category ORDER BY item.title ASC LIMIT 25' },
   { name: "Optional match", query: "MATCH (item) OPTIONAL MATCH (item)-[:related]->(items)-[:*]->(related) RETURN item.id AS id, related.id AS relatedId ORDER BY item.id ASC LIMIT 25" },

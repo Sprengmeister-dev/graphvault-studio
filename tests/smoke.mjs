@@ -331,6 +331,7 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(html.includes('id="gvqlExamples"'), true);
     assert.equal(html.includes("Scalar functions"), true);
     assert.equal(html.includes("CASE update"), true);
+    assert.equal(html.includes("WITH pipeline"), true);
     const gvqlResponse = await fetch(`${server.url}/api/gvql`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -343,6 +344,18 @@ async function assertAdminServer(storageDirectory) {
     const apiGvql = await gvqlResponse.json();
     assert.equal(apiGvql.kind, "select");
     assert.equal(apiGvql.plan.grouped, true);
+    const withResponse = await fetch(`${server.url}/api/gvql`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        query: "MATCH (doc:Document) WITH doc.status AS status, count(*) AS count GROUP BY doc.status HAVING count >= 1 RETURN status, count ORDER BY count DESC",
+        dryRun: true,
+      }),
+    });
+    assert.equal(withResponse.status, 200);
+    const apiWith = await withResponse.json();
+    assert.equal(apiWith.kind, "select");
+    assert.equal(apiWith.plan.operations.includes("with-project"), true);
   } catch (error) {
     if (error?.code === "EPERM" && process.env.CI !== "true") {
       return;

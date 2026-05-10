@@ -264,6 +264,30 @@ LIMIT 25
 
 ```sql
 MATCH (doc:Document)
+WHERE doc.status IS NOT NULL
+WITH doc.status AS status, count(*) AS count, avg(doc.views) AS avgViews
+GROUP BY doc.status
+HAVING count > 0
+RETURN status, count, avgViews
+ORDER BY count DESC
+```
+
+```sql
+MATCH (doc:Document)
+WHERE doc.status IS NOT NULL
+WITH doc.id AS id,
+  CASE
+    WHEN doc.views >= 100 THEN "hot"
+    WHEN doc.archivedAt IS NOT NULL THEN "archived"
+    ELSE "active"
+  END AS bucket
+WHERE bucket = "hot"
+RETURN id, bucket
+ORDER BY id ASC
+```
+
+```sql
+MATCH (doc:Document)
 WHERE doc.status = "draft"
 SET doc.status = "archived"
 RETURN count(*) AS changed
@@ -330,7 +354,7 @@ ORDER BY status ASC
 `Run / Preview` executes read queries and dry-runs updates. `Commit GVQL` applies update statements only when Studio was started with mutation support and the confirmation token matches.
 
 Each GVQL run includes an execution-plan row that shows whether Studio used a type index, primitive-property index, indexed `OR` union, or full scan, plus candidate and returned-row counts. That makes slow queries much easier to tune before they become production habits.
-Use `LIMIT` and `OFFSET` in the console for predictable paging through large result sets. Comma-separated `MATCH` patterns let you express join-like graph queries where shared aliases must resolve to the same object. `OPTIONAL MATCH` keeps the primary rows visible when a relationship is missing. Computed `RETURN` expressions, `CASE` buckets, and scalar functions such as `lower`, `upper`, `trim`, `length`, and `coalesce` are useful for quick scores, projections, normalization, and sanity checks without changing stored data. `RETURN DISTINCT` and `count(DISTINCT path)` are useful when you want compact lists or cardinality checks for values such as statuses, tenants, regions, types, or object categories. Parentheses and `NOT` in `WHERE` and `HAVING` make mixed filters predictable. `CREATE ... INTO`, arithmetic or conditional `SET` expressions, `IS NULL`, `IS NOT NULL`, `REMOVE`, and parent-aware `DELETE` make graph manipulation previewable before commit.
+Use `LIMIT` and `OFFSET` in the console for predictable paging through large result sets. Comma-separated `MATCH` patterns let you express join-like graph queries where shared aliases must resolve to the same object. `OPTIONAL MATCH` keeps the primary rows visible when a relationship is missing. `WITH` pipelines let you name intermediate values, aggregate them, and filter row aliases before the final `RETURN`. Computed `RETURN` expressions, `CASE` buckets, and scalar functions such as `lower`, `upper`, `trim`, `length`, and `coalesce` are useful for quick scores, projections, normalization, and sanity checks without changing stored data. `RETURN DISTINCT` and `count(DISTINCT path)` are useful when you want compact lists or cardinality checks for values such as statuses, tenants, regions, types, or object categories. Parentheses and `NOT` in `WHERE` and `HAVING` make mixed filters predictable. `CREATE ... INTO`, arithmetic or conditional `SET` expressions, `IS NULL`, `IS NOT NULL`, `REMOVE`, and parent-aware `DELETE` make graph manipulation previewable before commit.
 
 ## Relationship To GraphVault Library
 
