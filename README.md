@@ -254,6 +254,13 @@ DELETE doc
 RETURN doc.id AS id
 ```
 
+```sql
+MATCH (workspace:Workspace)
+WHERE workspace.name = "Developer docs"
+CREATE (doc:Document { id: "doc-4", title: "Release checklist", status: "draft", views: 0 }) INTO workspace.documents
+RETURN doc.id AS id, doc.title AS title
+```
+
 Aggregate queries can be inspected directly in the same console:
 
 ```sql
@@ -275,7 +282,7 @@ ORDER BY status ASC
 `Run / Preview` executes read queries and dry-runs updates. `Commit GVQL` applies update statements only when Studio was started with mutation support and the confirmation token matches.
 
 Each GVQL run includes an execution-plan row that shows whether Studio used a type index, primitive-property index, indexed `OR` union, or full scan, plus candidate and returned-row counts. That makes slow queries much easier to tune before they become production habits.
-Use `LIMIT` and `OFFSET` in the console for predictable paging through large result sets. Computed `RETURN` expressions are useful for quick scores, projections, and sanity checks without changing stored data. `RETURN DISTINCT` and `count(DISTINCT path)` are useful when you want compact lists or cardinality checks for values such as statuses, tenants, regions, types, or object categories. Parentheses and `NOT` in `WHERE` and `HAVING` make mixed filters predictable. Arithmetic `SET` expressions make numeric batch updates previewable before commit. `IS NULL`, `IS NOT NULL`, `REMOVE`, and parent-aware `DELETE` make optional fields and obsolete objects easy to inspect and clean up.
+Use `LIMIT` and `OFFSET` in the console for predictable paging through large result sets. Computed `RETURN` expressions are useful for quick scores, projections, and sanity checks without changing stored data. `RETURN DISTINCT` and `count(DISTINCT path)` are useful when you want compact lists or cardinality checks for values such as statuses, tenants, regions, types, or object categories. Parentheses and `NOT` in `WHERE` and `HAVING` make mixed filters predictable. `CREATE ... INTO`, arithmetic `SET` expressions, `IS NULL`, `IS NOT NULL`, `REMOVE`, and parent-aware `DELETE` make graph manipulation previewable before commit.
 
 ## Relationship To GraphVault Library
 

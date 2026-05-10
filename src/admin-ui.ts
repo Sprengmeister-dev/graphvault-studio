@@ -654,7 +654,8 @@ OFFSET 0</textarea>
           'MATCH (item) WHERE item.status = "draft" SET item.status = "archived" RETURN count(*) AS changed',
           'MATCH (item) WHERE item.status = "published" SET item.views = (item.views + $increment) * 2 RETURN item.id AS id, item.views AS views',
           'MATCH (item) WHERE item.archivedAt IS NOT NULL REMOVE item.archivedAt RETURN count(*) AS changed',
-          'MATCH (item) WHERE item.status = "archived" DELETE item RETURN item.id AS id'
+          'MATCH (item) WHERE item.status = "archived" DELETE item RETURN item.id AS id',
+          'MATCH (workspace:Workspace) WHERE workspace.name = "Developer docs" CREATE (item:Document { id: "doc-4", title: "Release checklist", status: "draft", views: 0 }) INTO workspace.documents RETURN item.id AS id, item.title AS title'
         ]
       });
     }

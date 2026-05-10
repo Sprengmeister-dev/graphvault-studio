@@ -224,6 +224,37 @@ try {
   assert.equal(deletedField.kind, "select");
   assert.deepEqual(deletedField.rows, []);
 
+  const createPreview = await client.gvql(
+    `
+      MATCH (workspace:Workspace)
+      WHERE workspace.name = "Developer docs"
+      CREATE (doc:Document { id: "doc-3", title: "Release checklist", status: "draft", views: $views }) INTO workspace.documents
+      RETURN doc.id AS id, doc.title AS title
+    `,
+    { dryRun: true, parameters: { views: 9 } },
+  );
+  assert.equal(createPreview.kind, "update");
+  assert.equal(createPreview.dryRun, true);
+  assert.deepEqual(createPreview.rows, [{ id: "doc-3", title: "Release checklist" }]);
+  assert.equal(createPreview.changes.some((change) => change.operation === "create" && change.alias === "doc"), true);
+  assert.equal(createPreview.changes.some((change) => change.operation === "attach" && change.path === "documents"), true);
+
+  const created = await client.gvql(
+    `
+      MATCH (workspace:Workspace)
+      WHERE workspace.name = "Developer docs"
+      CREATE (doc:Document { id: "doc-3", title: "Release checklist", status: "draft", views: $views }) INTO workspace.documents
+      RETURN doc.id AS id, doc.views AS views
+    `,
+    { parameters: { views: 9 } },
+  );
+  assert.equal(created.kind, "update");
+  assert.deepEqual(created.rows, [{ id: "doc-3", views: 9 }]);
+
+  const createdField = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-3" RETURN doc.title AS title, doc.views AS views');
+  assert.equal(createdField.kind, "select");
+  assert.deepEqual(createdField.rows, [{ title: "Release checklist", views: 9 }]);
+
   await assertAdminServer(storageDirectory);
 } finally {
   await rm(storageDirectory, { recursive: true, force: true });
