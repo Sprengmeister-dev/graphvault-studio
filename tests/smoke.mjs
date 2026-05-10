@@ -359,6 +359,7 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(html.includes("CASE update"), true);
     assert.equal(html.includes("WITH pipeline"), true);
     assert.equal(html.includes("MERGE into collection"), true);
+    assert.equal(html.includes("gvqlParameterEditor"), true);
     const gvqlResponse = await fetch(`${server.url}/api/gvql`, {
       method: "POST",
       headers: { "content-type": "application/json" },

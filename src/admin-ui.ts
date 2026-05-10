@@ -68,7 +68,11 @@ export const ADMIN_HTML = `<!doctype html>
     .gvql-examples { display: flex; flex-wrap: wrap; gap: 6px; }
     .gvql-example { padding: 7px 9px; font-size: 12px; color: #0d6264; background: #eef7f6; border-color: #bddeda; }
     .gvql-example:hover { background: #dff0ee; border-color: #8fc7c0; }
-    .gvql-actions { display: grid; grid-template-columns: 1fr minmax(130px, 180px) auto auto; gap: 8px; align-items: center; }
+    .gvql-parameters { display: grid; gap: 7px; }
+    .gvql-parameter-row { display: grid; grid-template-columns: minmax(96px, 150px) minmax(150px, 1fr) minmax(96px, 120px); gap: 8px; align-items: center; }
+    .gvql-param-name { color: #0d6264; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .gvql-param-empty { color: var(--muted); padding: 8px 0; }
+    .gvql-actions { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; }
     .actions { display: flex; gap: 8px; justify-content: flex-end; }
     .primary { color: #fff; background: var(--accent); border-color: var(--accent); }
     .primary:hover { color: #fff; background: #0b7375; }
@@ -113,6 +117,7 @@ export const ADMIN_HTML = `<!doctype html>
     }
     @media (max-width: 980px) {
       .shell, .kpis, .mutation-grid, .topbar, .fields-head { grid-template-columns: 1fr; }
+      .gvql-actions, .gvql-parameter-row { grid-template-columns: 1fr; }
       nav { grid-template-rows: auto; gap: 10px; padding: 12px; }
       .brand { grid-template-columns: 42px 1fr; padding-bottom: 2px; }
       .brand img { width: 42px; height: 42px; border-radius: 11px; }
@@ -177,8 +182,9 @@ ORDER BY node.$id ASC
 LIMIT 25
 OFFSET 0</textarea>
               <div class="gvql-examples" id="gvqlExamples"></div>
+              <div class="gvql-parameters" id="gvqlParameterEditor"></div>
+              <input id="gvqlParams" type="hidden" />
               <div class="gvql-actions">
-                <input id="gvqlParams" placeholder='Parameters JSON, e.g. {"status":"draft"}' />
                 <input id="gvqlConfirmToken" placeholder="Confirm token" />
                 <button onclick="runGvql(true)">Run / Preview</button>
                 <button class="danger" onclick="runGvql(false)">Commit GVQL</button>
@@ -213,6 +219,7 @@ OFFSET 0</textarea>
     const objectPageSize = 100;
     let objectPageOffset = 0;
     let hierarchyPath = [];
+    let gvqlEditorWired = false;
     const viewText = {
       hierarchy: ['Object Hierarchy', 'Root-first graph view with references you can follow.'],
       overview: ['Storage Overview', 'Health, object count, latest transaction, and current snapshot.'],
@@ -642,11 +649,18 @@ OFFSET 0</textarea>
       listTitle.textContent = 'GVQL results';
       listHint.textContent = 'MATCH / WHERE / RETURN / GROUP BY / HAVING / SET';
       document.getElementById('gvqlPanel').classList.add('active');
+      wireGvqlEditor();
       renderGvqlExamples();
+      renderGvqlParameterEditor();
       setRows([], 'Run a GVQL query');
       show({
         examples: gvqlExamples.map(example => ({ name: example.name, query: example.query, parameters: example.parameters || {} }))
       });
+    }
+    function wireGvqlEditor() {
+      if (gvqlEditorWired) return;
+      document.getElementById('gvqlQuery').addEventListener('input', () => renderGvqlParameterEditor(readGvqlParametersFromHidden()));
+      gvqlEditorWired = true;
     }
     function renderGvqlExamples() {
       const target = document.getElementById('gvqlExamples');
@@ -665,16 +679,146 @@ OFFSET 0</textarea>
       const example = gvqlExamples[index];
       document.getElementById('gvqlQuery').value = example.query;
       document.getElementById('gvqlParams').value = example.parameters ? JSON.stringify(example.parameters) : '';
+      renderGvqlParameterEditor(example.parameters || {});
       setRows([], 'Run a GVQL query');
       show({ selectedExample: example.name, query: example.query, parameters: example.parameters || {} });
+    }
+    function renderGvqlParameterEditor(seed) {
+      const target = document.getElementById('gvqlParameterEditor');
+      const names = extractGvqlParameterNames(document.getElementById('gvqlQuery').value);
+      const values = Object.assign({}, readGvqlParametersFromHidden(), seed || {});
+      if (!names.length) {
+        document.getElementById('gvqlParams').value = '{}';
+        const empty = document.createElement('div');
+        empty.className = 'gvql-param-empty';
+        empty.textContent = 'No query parameters';
+        target.replaceChildren(empty);
+        return;
+      }
+      target.replaceChildren(...names.map(name => {
+        const row = document.createElement('div');
+        row.className = 'gvql-parameter-row';
+        row.dataset.name = name;
+        const label = document.createElement('span');
+        label.className = 'gvql-param-name';
+        label.textContent = '$' + name;
+        const input = document.createElement('input');
+        input.placeholder = 'Value';
+        const type = document.createElement('select');
+        ['string', 'number', 'boolean', 'null', 'json'].forEach(kind => {
+          const option = document.createElement('option');
+          option.value = kind;
+          option.textContent = kind;
+          type.appendChild(option);
+        });
+        type.value = inferGvqlParameterType(values[name]);
+        input.value = formatGvqlParameterInput(values[name], type.value);
+        input.disabled = type.value === 'null';
+        input.oninput = syncGvqlParameters;
+        type.onchange = () => {
+          input.disabled = type.value === 'null';
+          if (type.value === 'null') input.value = '';
+          syncGvqlParameters();
+        };
+        row.append(label, input, type);
+        return row;
+      }));
+      syncGvqlParameters();
+    }
+    function extractGvqlParameterNames(query) {
+      const names = [];
+      const seen = new Set();
+      let quote = '';
+      for (let index = 0; index < query.length; index += 1) {
+        const char = query[index];
+        if (quote) {
+          if (char === '\\\\') index += 1;
+          else if (char === quote) quote = '';
+          continue;
+        }
+        if (char === '"' || char === "'") {
+          quote = char;
+          continue;
+        }
+        if (char !== '$' || query[index - 1] === '.') continue;
+        const match = query.slice(index + 1).match(/^[A-Za-z_][A-Za-z0-9_]*/);
+        if (!match || seen.has(match[0])) continue;
+        seen.add(match[0]);
+        names.push(match[0]);
+        index += match[0].length;
+      }
+      return names;
+    }
+    function readGvqlParametersFromHidden() {
+      try {
+        return JSON.parse(document.getElementById('gvqlParams').value || '{}');
+      } catch (_error) {
+        return {};
+      }
+    }
+    function syncGvqlParameters() {
+      try {
+        document.getElementById('gvqlParams').value = JSON.stringify(readGvqlParametersFromEditor());
+      } catch (_error) {
+        return;
+      }
+    }
+    function readGvqlParametersFromEditor() {
+      const parameters = {};
+      document.querySelectorAll('.gvql-parameter-row').forEach(row => {
+        const name = row.dataset.name;
+        const input = row.querySelector('input');
+        const type = row.querySelector('select').value;
+        parameters[name] = parseGvqlParameterInput(input.value, type, name);
+      });
+      return parameters;
+    }
+    function parseGvqlParameterInput(value, type, name) {
+      if (type === 'string') return value;
+      if (type === 'number') {
+        const number = Number(value);
+        if (!Number.isFinite(number)) throw new Error('$' + name + ' must be a finite number');
+        return number;
+      }
+      if (type === 'boolean') {
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        throw new Error('$' + name + ' must be true or false');
+      }
+      if (type === 'null') return null;
+      try {
+        return JSON.parse(value);
+      } catch (_error) {
+        throw new Error('$' + name + ' must contain valid JSON');
+      }
+    }
+    function inferGvqlParameterType(value) {
+      if (value === null) return 'null';
+      if (typeof value === 'number') return 'number';
+      if (typeof value === 'boolean') return 'boolean';
+      if (typeof value === 'object' && typeof value !== 'undefined') return 'json';
+      return 'string';
+    }
+    function formatGvqlParameterInput(value, type) {
+      if (typeof value === 'undefined' || value === null) return '';
+      return type === 'json' ? JSON.stringify(value) : String(value);
     }
     async function runGvql(dryRun) {
       setView('gvql');
       document.getElementById('gvqlPanel').classList.add('active');
-      const parametersText = document.getElementById('gvqlParams').value.trim();
+      let parameters;
+      try {
+        parameters = readGvqlParametersFromEditor();
+        document.getElementById('gvqlParams').value = JSON.stringify(parameters);
+      } catch (error) {
+        setStatus('error');
+        setRows([], error.message || 'Invalid GVQL parameters');
+        show({ error: error.message || String(error) });
+        return;
+      }
       const payload = {
         query: document.getElementById('gvqlQuery').value,
-        parameters: parametersText ? JSON.parse(parametersText) : {},
+        parameters,
         dryRun
       };
       if (!dryRun && confirmRequired) payload.confirmToken = document.getElementById('gvqlConfirmToken').value;
