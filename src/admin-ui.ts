@@ -654,10 +654,17 @@ LIMIT 25</textarea>
       };
       if (!dryRun && confirmRequired) payload.confirmToken = document.getElementById('gvqlConfirmToken').value;
       const result = await postJson('/api/gvql', payload);
-      const rows = (result.rows || []).map((row, index) => ({
+      const rows = [];
+      if (result.plan) {
+        rows.push({
+          columns: ['plan', result.plan.candidateSource || 'scan', summarizeGvqlPlan(result.plan), result.plan.indexUsed ? 'indexed' : 'scan'],
+          onclick: () => show({ plan: result.plan, statement: result.statement })
+        });
+      }
+      rows.push(...(result.rows || []).map((row, index) => ({
         columns: [String(index + 1), result.kind || 'row', summarizeGvqlRow(row), result.dryRun ? 'preview' : 'result'],
         onclick: () => show(row)
-      }));
+      })));
       if (result.kind === 'update' && result.changes) {
         rows.push(...result.changes.slice(0, 200).map(change => ({
           columns: ['#' + change.objectId, 'set', change.path + ': ' + change.before + ' -> ' + change.after, result.dryRun ? 'preview' : 'changed'],
@@ -669,6 +676,14 @@ LIMIT 25</textarea>
     }
     function summarizeGvqlRow(row) {
       return Object.entries(row).map(([key, value]) => key + ': ' + (typeof value === 'object' ? JSON.stringify(value) : String(value))).join(', ').slice(0, 220);
+    }
+    function summarizeGvqlPlan(plan) {
+      return [
+        plan.startCandidates + ' candidates',
+        plan.filteredBindings + ' matched',
+        plan.returnedRows + ' rows',
+        (plan.operations || []).join(' -> ')
+      ].filter(Boolean).join(' | ').slice(0, 220);
     }
     async function showSearch() {
       setView('search');

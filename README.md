@@ -177,6 +177,8 @@ ORDER BY count DESC
 
 `Run / Preview` executes read queries and dry-runs updates. `Commit GVQL` applies update statements only when Studio was started with mutation support and the confirmation token matches.
 
+Each GVQL run includes an execution-plan row that shows whether Studio used a type index, primitive-property index, or full scan, plus candidate and returned-row counts. That makes slow queries much easier to tune before they become production habits.
+
 ## Relationship To GraphVault Library
 
 The storage engine lives in [graphvault-library](https://github.com/Sprengmeister-dev/graphvault-library). Studio is intentionally separate so applications can depend on the lightweight persistence library without bundling an admin UI.

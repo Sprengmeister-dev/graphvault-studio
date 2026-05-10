@@ -56,6 +56,8 @@ try {
   const gvql = await client.gvql('MATCH (doc:Document) WHERE doc.title CONTAINS "Storage" RETURN doc.id AS id, doc.title AS title');
   assert.equal(gvql.kind, "select");
   assert.deepEqual(gvql.rows, [{ id: "doc-1", title: "Storage configuration" }]);
+  assert.equal(gvql.plan.candidateSource, "type-index");
+  assert.equal(gvql.plan.returnedRows, 1);
 
   const aggregate = await client.gvql(
     `
@@ -72,6 +74,8 @@ try {
     { status: "published", count: 1, total: 24 },
     { status: "draft", count: 1, total: 12 },
   ]);
+  assert.equal(aggregate.plan.grouped, true);
+  assert.equal(aggregate.plan.having, true);
 
   const preview = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-2" SET doc.status = "review" RETURN count(*) AS changed', {
     dryRun: true,
@@ -79,6 +83,7 @@ try {
   assert.equal(preview.kind, "update");
   assert.equal(preview.dryRun, true);
   assert.equal(preview.changed, 1);
+  assert.equal(preview.plan.candidateSource, "property-index");
 
   await assertAdminServer(storageDirectory);
 } finally {
@@ -104,6 +109,7 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(gvqlResponse.status, 200);
     const apiGvql = await gvqlResponse.json();
     assert.equal(apiGvql.kind, "select");
+    assert.equal(apiGvql.plan.grouped, true);
   } catch (error) {
     if (error?.code === "EPERM" && process.env.CI !== "true") {
       return;
