@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2
+
+- Publish the Studio CLI under the unscoped `graphvault-studio` npm package name for a reliable `npx graphvault-studio` install path.
+
 ## 0.1.1
 
 - Patch npm package metadata so the `graphvault-studio` CLI binary is preserved on publish.

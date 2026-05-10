@@ -53,7 +53,7 @@ It is deliberately generic. It does not assume customers, orders, tickets, CMS p
 From npm:
 
 ```bash
-npm install @sprengmeister/graphvault-studio
+npm install graphvault-studio
 ```
 
 GraphVault Studio requires Node.js 20 or newer. The npm package is scoped, but the executable remains the short `graphvault-studio` command.
