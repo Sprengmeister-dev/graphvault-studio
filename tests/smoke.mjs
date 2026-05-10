@@ -64,10 +64,22 @@ try {
   assert.deepEqual(paged.rows, [{ id: "doc-2" }]);
   assert.equal(paged.plan.offset, 1);
 
+  const distinct = await client.gvql("MATCH (doc:Document) RETURN DISTINCT doc.status AS status ORDER BY status ASC");
+  assert.equal(distinct.kind, "select");
+  assert.deepEqual(distinct.rows, [{ status: "draft" }, { status: "published" }]);
+  assert.equal(distinct.plan.distinct, true);
+
   const multiIndex = await client.gvql('MATCH (doc:Document) WHERE doc.status = "published" AND doc.id = "doc-2" RETURN doc.id AS id');
   assert.equal(multiIndex.kind, "select");
   assert.deepEqual(multiIndex.rows, [{ id: "doc-2" }]);
   assert.equal(multiIndex.plan.propertyIndexes.length, 2);
+
+  const multiOrder = await client.gvql("MATCH (doc:Document) RETURN doc.status AS status, count(*) AS count GROUP BY doc.status ORDER BY count DESC, status ASC");
+  assert.equal(multiOrder.kind, "select");
+  assert.deepEqual(multiOrder.rows, [
+    { status: "draft", count: 1 },
+    { status: "published", count: 1 },
+  ]);
 
   const aggregate = await client.gvql(
     `

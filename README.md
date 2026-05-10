@@ -155,7 +155,15 @@ Studio includes a GVQL console for GraphVault stores. It supports read queries a
 MATCH (doc:Document)-[:owner]->(owner:Owner)
 WHERE owner.name = "Platform Team"
 RETURN doc.id AS id, doc.title AS title
+ORDER BY doc.title ASC, doc.id ASC
 LIMIT 25
+OFFSET 0
+```
+
+```sql
+MATCH (doc:Document)
+RETURN DISTINCT doc.status AS status
+ORDER BY status ASC
 ```
 
 ```sql
@@ -172,13 +180,13 @@ MATCH (item)
 RETURN item.status AS status, count(*) AS count
 GROUP BY item.status
 HAVING count > 1
-ORDER BY count DESC
+ORDER BY count DESC, status ASC
 ```
 
 `Run / Preview` executes read queries and dry-runs updates. `Commit GVQL` applies update statements only when Studio was started with mutation support and the confirmation token matches.
 
 Each GVQL run includes an execution-plan row that shows whether Studio used a type index, primitive-property index, or full scan, plus candidate and returned-row counts. That makes slow queries much easier to tune before they become production habits.
-Use `LIMIT` and `OFFSET` in the console for predictable paging through large result sets.
+Use `LIMIT` and `OFFSET` in the console for predictable paging through large result sets. `RETURN DISTINCT` is useful when you want a compact list of values such as statuses, tenants, regions, or object categories.
 
 ## Relationship To GraphVault Library
 

@@ -168,7 +168,8 @@ export const ADMIN_HTML = `<!doctype html>
             <div class="gvql-box" id="gvqlPanel">
               <textarea id="gvqlQuery" spellcheck="false">MATCH (node)
 RETURN node
-LIMIT 25</textarea>
+LIMIT 25
+OFFSET 0</textarea>
               <div class="gvql-actions">
                 <input id="gvqlParams" placeholder='Parameters JSON, e.g. {"status":"draft"}' />
                 <input id="gvqlConfirmToken" placeholder="Confirm token" />
@@ -637,7 +638,8 @@ LIMIT 25</textarea>
       show({
         examples: [
           'MATCH (node) RETURN node LIMIT 25 OFFSET 0',
-          'MATCH (item) RETURN item.status AS status, count(*) AS count GROUP BY item.status HAVING count > 1 ORDER BY count DESC',
+          'MATCH (item) RETURN DISTINCT item.status AS status ORDER BY status ASC',
+          'MATCH (item) RETURN item.status AS status, count(*) AS count GROUP BY item.status HAVING count > 1 ORDER BY count DESC, status ASC',
           'MATCH (item)-[:owner]->(owner) WHERE owner.name = "Platform Team" RETURN item.title AS title',
           'MATCH (item) WHERE item.status = "draft" SET item.status = "archived" RETURN count(*) AS changed'
         ]
