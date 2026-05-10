@@ -116,6 +116,7 @@ http://127.0.0.1:4177
 - [GVQL examples](./docs/GVQL.md) - ready-to-run query and mutation-preview examples for Studio.
 - [Remote and custom storage](./docs/REMOTE_STORAGE.md) - programmatic server setup with HTTP, S3-compatible, SQL, or custom targets.
 - [Release notes](./docs/RELEASE_NOTES_0.1.0.md) - package overview for the first public release.
+- [Publishing checklist](./docs/PUBLISHING.md) - local release checks, tagging, npm provenance, and GitHub topics.
 
 ## Relationship To GraphVault Library
 
