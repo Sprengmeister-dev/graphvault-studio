@@ -160,6 +160,16 @@ try {
   assert.equal(preview.changed, 1);
   assert.equal(preview.plan.candidateSource, "property-index");
 
+  const arithmeticPreview = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-2" SET doc.views = (doc.views + $increment) * 2 RETURN doc.id AS id, doc.views AS views', {
+    dryRun: true,
+    parameters: { increment: 3 },
+  });
+  assert.equal(arithmeticPreview.kind, "update");
+  assert.equal(arithmeticPreview.dryRun, true);
+  assert.equal(arithmeticPreview.changed, 1);
+  assert.equal(arithmeticPreview.changes[0].before, 24);
+  assert.equal(arithmeticPreview.changes[0].after, 54);
+
   const removePreview = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-2" REMOVE doc.archivedAt RETURN count(*) AS changed', {
     dryRun: true,
   });
