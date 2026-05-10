@@ -65,6 +65,12 @@ try {
   assert.deepEqual(paged.rows, [{ id: "doc-2" }]);
   assert.equal(paged.plan.offset, 1);
 
+  const metadata = await client.gvql("MATCH (doc:Document) RETURN doc.$id AS objectId, doc.$type AS type, doc.$kind AS kind ORDER BY doc.$id ASC LIMIT 1");
+  assert.equal(metadata.kind, "select");
+  assert.equal(typeof metadata.rows[0].objectId, "string");
+  assert.equal(metadata.rows[0].type, "Document");
+  assert.equal(metadata.rows[0].kind, "object");
+
   const distinct = await client.gvql("MATCH (doc:Document) RETURN DISTINCT doc.status AS status ORDER BY status ASC");
   assert.equal(distinct.kind, "select");
   assert.deepEqual(distinct.rows, [{ status: "draft" }, { status: "published" }]);

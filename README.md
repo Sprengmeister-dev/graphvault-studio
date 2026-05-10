@@ -152,6 +152,14 @@ For mutation endpoints, always set `allowMutations: true` and a `mutationConfirm
 Studio includes a GVQL console for GraphVault stores. It supports read queries and safe batch-update previews:
 
 ```sql
+MATCH (node)
+RETURN node.$id AS objectId, node.$type AS type, node.$kind AS kind
+ORDER BY node.$id ASC
+LIMIT 25
+OFFSET 0
+```
+
+```sql
 MATCH (doc:Document)-[:owner]->(owner:Owner)
 WHERE owner.name = "Platform Team"
 RETURN doc.id AS id, doc.title AS title

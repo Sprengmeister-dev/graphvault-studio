@@ -167,7 +167,8 @@ export const ADMIN_HTML = `<!doctype html>
             </details>
             <div class="gvql-box" id="gvqlPanel">
               <textarea id="gvqlQuery" spellcheck="false">MATCH (node)
-RETURN node
+RETURN node.$id AS objectId, node.$type AS type, node.$kind AS kind
+ORDER BY node.$id ASC
 LIMIT 25
 OFFSET 0</textarea>
               <div class="gvql-actions">
@@ -637,7 +638,7 @@ OFFSET 0</textarea>
       setRows([], 'Run a GVQL query');
       show({
         examples: [
-          'MATCH (node) RETURN node LIMIT 25 OFFSET 0',
+          'MATCH (node) RETURN node.$id AS objectId, node.$type AS type, node.$kind AS kind ORDER BY node.$id ASC LIMIT 25 OFFSET 0',
           'MATCH (item) RETURN DISTINCT item.status AS status ORDER BY status ASC',
           'MATCH (item) WHERE item.archivedAt IS NULL AND item.status IS NOT NULL RETURN item.id AS id, item.title AS title ORDER BY item.id ASC',
           'MATCH (item) WHERE item.status IN ["draft", "published"] AND item.id IN ["doc-1", "doc-2"] RETURN item.id AS id, item.status AS status ORDER BY item.id ASC',
