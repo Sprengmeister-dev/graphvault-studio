@@ -325,6 +325,11 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(response.status, 200);
     const apiSummary = await response.json();
     assert.equal(apiSummary.verification.ok, true);
+    const uiResponse = await fetch(server.url);
+    assert.equal(uiResponse.status, 200);
+    const html = await uiResponse.text();
+    assert.equal(html.includes('id="gvqlExamples"'), true);
+    assert.equal(html.includes("Scalar functions"), true);
     const gvqlResponse = await fetch(`${server.url}/api/gvql`, {
       method: "POST",
       headers: { "content-type": "application/json" },
