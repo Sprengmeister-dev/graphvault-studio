@@ -103,6 +103,12 @@ try {
   assert.equal(indexedIn.plan.operations.includes("property-index-union:status:2"), true);
   assert.equal(indexedIn.plan.operations.includes("property-index-union:id:2"), true);
 
+  const indexedOr = await client.gvql('MATCH (doc:Document) WHERE doc.id = "missing" OR doc.status = "published" RETURN doc.id AS id, doc.status AS status');
+  assert.equal(indexedOr.kind, "select");
+  assert.deepEqual(indexedOr.rows, [{ id: "doc-2", status: "published" }]);
+  assert.equal(indexedOr.plan.candidateSource, "property-index");
+  assert.equal(indexedOr.plan.operations.includes("index-or-union:2"), true);
+
   const multiOrder = await client.gvql("MATCH (doc:Document) RETURN doc.status AS status, count(*) AS count GROUP BY doc.status ORDER BY count DESC, status ASC");
   assert.equal(multiOrder.kind, "select");
   assert.deepEqual(multiOrder.rows, [
