@@ -59,6 +59,16 @@ try {
   assert.equal(gvql.plan.candidateSource, "type-index");
   assert.equal(gvql.plan.returnedRows, 1);
 
+  const paged = await client.gvql("MATCH (doc:Document) RETURN doc.id AS id ORDER BY doc.id ASC LIMIT 1 OFFSET 1");
+  assert.equal(paged.kind, "select");
+  assert.deepEqual(paged.rows, [{ id: "doc-2" }]);
+  assert.equal(paged.plan.offset, 1);
+
+  const multiIndex = await client.gvql('MATCH (doc:Document) WHERE doc.status = "published" AND doc.id = "doc-2" RETURN doc.id AS id');
+  assert.equal(multiIndex.kind, "select");
+  assert.deepEqual(multiIndex.rows, [{ id: "doc-2" }]);
+  assert.equal(multiIndex.plan.propertyIndexes.length, 2);
+
   const aggregate = await client.gvql(
     `
       MATCH (doc:Document)
@@ -102,7 +112,7 @@ async function assertAdminServer(storageDirectory) {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        query: "MATCH (doc:Document) RETURN doc.status AS status, count(*) AS count GROUP BY doc.status HAVING count >= 1 ORDER BY count DESC",
+        query: "MATCH (doc:Document) RETURN doc.status AS status, count(*) AS count GROUP BY doc.status HAVING count >= 1 ORDER BY count DESC LIMIT 1 OFFSET 0",
         dryRun: true,
       }),
     });

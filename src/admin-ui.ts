@@ -636,7 +636,7 @@ LIMIT 25</textarea>
       setRows([], 'Run a GVQL query');
       show({
         examples: [
-          'MATCH (node) RETURN node LIMIT 25',
+          'MATCH (node) RETURN node LIMIT 25 OFFSET 0',
           'MATCH (item) RETURN item.status AS status, count(*) AS count GROUP BY item.status HAVING count > 1 ORDER BY count DESC',
           'MATCH (item)-[:owner]->(owner) WHERE owner.name = "Platform Team" RETURN item.title AS title',
           'MATCH (item) WHERE item.status = "draft" SET item.status = "archived" RETURN count(*) AS changed'
