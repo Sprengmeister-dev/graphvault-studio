@@ -1,6 +1,6 @@
 import { summarizeNode } from "./admin-inspection.js";
 import type { AdminHierarchyPath, AdminHierarchyPathItem, AdminObjectParent } from "./admin-types.js";
-import type { ObjectRecord, ParentIndexRecord } from "graphvault/internal/types";
+import type { ObjectRecord, ParentIndexRecord } from "@sprengmeister/graphvault/internal/core/types";
 
 export async function directParentsFromIndex(
   index: ParentIndexRecord,

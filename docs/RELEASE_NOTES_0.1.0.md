@@ -17,7 +17,7 @@ GraphVault Studio 0.1.0 is the first public graphical admin client for GraphVaul
 ## Install
 
 ```bash
-npm install graphvault-studio@github:Sprengmeister-dev/graphvault-studio
+npm install @sprengmeister/graphvault-studio
 ```
 
 The package is ready for npm registry publishing with the CLI binary:

@@ -24,4 +24,4 @@ npm test
 1. Update `CHANGELOG.md`.
 2. Run `npm test`.
 3. Run `npm run pack:dry-run` and inspect the packaged files.
-4. Publish with an npm account that owns `graphvault-studio`.
+4. Publish with an npm account that owns `@sprengmeister/graphvault-studio`.

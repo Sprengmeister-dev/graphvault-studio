@@ -4,7 +4,7 @@ This checklist keeps the first public admin-client release repeatable.
 
 ## Preconditions
 
-- `graphvault-library` has already been released or the GitHub dependency is intentionally kept for this Studio release.
+- `@sprengmeister/graphvault` has already been released.
 - `package.json` has the intended `name`, `version`, `repository`, `homepage`, `bugs`, `license`, `engines`, `bin`, `exports`, and `files`.
 - `CHANGELOG.md` and `docs/RELEASE_NOTES_0.1.0.md` describe the release.
 - `NPM_TOKEN` is configured as a GitHub Actions repository secret for npm publishing.

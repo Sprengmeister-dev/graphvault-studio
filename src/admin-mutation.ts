@@ -1,4 +1,4 @@
-import type { EncodedNode, EncodedValue } from "graphvault/internal/types";
+import type { EncodedNode, EncodedValue } from "@sprengmeister/graphvault/internal/core/types";
 
 export function getNodePath(node: EncodedNode, path: string): EncodedValue {
   return resolveNodePath(node, path).read();

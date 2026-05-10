@@ -1,11 +1,11 @@
 import { join } from "node:path";
-import { copyStorageTargetTree, LocalFilesystemTarget } from "graphvault/internal/storage-target";
-import { StorageLayout } from "graphvault/internal/storage-layout";
-import { StorageReader } from "graphvault/internal/storage-reader";
-import { StorageWriter } from "graphvault/internal/storage-writer";
-import { verifyStorage } from "graphvault/internal/storage-verifier";
-import { buildParentIndexRecord } from "graphvault/internal/storage-parent-index";
-import { executeGvqlStatement, parseGvql } from "graphvault/internal/gvql";
+import { copyStorageTargetTree, LocalFilesystemTarget } from "@sprengmeister/graphvault/internal/storage/storage-target";
+import { StorageLayout } from "@sprengmeister/graphvault/internal/storage/storage-layout";
+import { StorageReader } from "@sprengmeister/graphvault/internal/storage/storage-reader";
+import { StorageWriter } from "@sprengmeister/graphvault/internal/storage/storage-writer";
+import { verifyStorage } from "@sprengmeister/graphvault/internal/storage/storage-verifier";
+import { buildParentIndexRecord } from "@sprengmeister/graphvault/internal/storage/storage-parent-index";
+import { executeGvqlStatement, parseGvql } from "@sprengmeister/graphvault/internal/gvql/gvql";
 import { referencedChildren, summarizeNode, visitNode } from "./admin-inspection.js";
 import { encodeAdminValue, getNodePath, setNodePath } from "./admin-mutation.js";
 import { pathFromObjectToRoot } from "./admin-parent-index.js";
@@ -19,8 +19,8 @@ import type {
   TransactionRecord,
   TypeDictionary,
   VerificationResult,
-} from "graphvault/internal/types";
-import type { GvqlExecutionOptions, GvqlResult } from "graphvault/internal/gvql";
+} from "@sprengmeister/graphvault/internal/core/types";
+import type { GvqlExecutionOptions, GvqlResult } from "@sprengmeister/graphvault/internal/gvql/gvql";
 
 import type {
   AdminGraph,

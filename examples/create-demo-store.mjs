@@ -1,5 +1,5 @@
 import { rm } from "node:fs/promises";
-import { EmbeddedStorage } from "graphvault";
+import { EmbeddedStorage } from "@sprengmeister/graphvault";
 
 class Workspace {
   constructor(name) {

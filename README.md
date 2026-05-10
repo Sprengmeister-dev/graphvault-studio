@@ -50,25 +50,13 @@ It is deliberately generic. It does not assume customers, orders, tickets, CMS p
 
 ## Install
 
-From GitHub today:
+From npm:
 
 ```bash
-npm install github:Sprengmeister-dev/graphvault-studio
+npm install @sprengmeister/graphvault-studio
 ```
 
-Or pin the package name locally with an npm alias:
-
-```bash
-npm install graphvault-studio@github:Sprengmeister-dev/graphvault-studio
-```
-
-Once published to the npm registry:
-
-```bash
-npm install graphvault-studio
-```
-
-The npm name `graphvault-studio` is currently available. Publishing requires an npm login on the local machine.
+GraphVault Studio requires Node.js 20 or newer. The npm package is scoped, but the executable remains the short `graphvault-studio` command.
 
 ## Run
 

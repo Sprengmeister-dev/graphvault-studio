@@ -6,9 +6,9 @@ import type {
   TransactionRecord,
   TypeDictionary,
   VerificationResult,
-} from "graphvault/internal/types";
+} from "@sprengmeister/graphvault/internal/core/types";
 
-export type { GvqlResult } from "graphvault/internal/gvql";
+export type { GvqlResult } from "@sprengmeister/graphvault/internal/gvql/gvql";
 
 export interface StorageAdminClientOptions {
   storageDirectory: string;
