@@ -651,6 +651,7 @@ OFFSET 0</textarea>
           'MATCH (item) RETURN item.status AS status, count(*) AS count GROUP BY item.status HAVING count > 1 ORDER BY count DESC, status ASC',
           'MATCH (item) RETURN item.status AS status, count(*) AS count, avg(item.views) AS avgViews GROUP BY item.status HAVING NOT (status = "published" OR avgViews < 10) ORDER BY status ASC',
           'MATCH (item)-[:owner]->(owner) WHERE owner.name = "Platform Team" RETURN item.title AS title',
+          'MATCH (item)-[:owner]->(owner), (item)-[:category]->(category) WHERE owner.name = "Platform Team" AND category.slug = "guides" RETURN item.id AS id, item.title AS title, category.label AS category ORDER BY item.title ASC LIMIT 25',
           'MATCH (item) WHERE item.status = "draft" SET item.status = "archived" RETURN count(*) AS changed',
           'MATCH (item) WHERE item.status = "published" SET item.views = (item.views + $increment) * 2 RETURN item.id AS id, item.views AS views',
           'MATCH (item) WHERE item.archivedAt IS NOT NULL REMOVE item.archivedAt RETURN count(*) AS changed',

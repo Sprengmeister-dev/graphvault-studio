@@ -12,10 +12,18 @@ class Workspace {
   }
 }
 
+class Owner {
+  constructor(id, name) {
+    this.id = id;
+    this.name = name;
+  }
+}
+
 class Document {
-  constructor(id, title, views = 0) {
+  constructor(id, title, owner, views = 0) {
     this.id = id;
     this.title = title;
+    this.owner = owner;
     this.status = "draft";
     this.views = views;
   }
@@ -23,6 +31,7 @@ class Document {
 
 const types = [
   { name: "Workspace", ctor: Workspace },
+  { name: "Owner", ctor: Owner },
   { name: "Document", ctor: Document },
 ];
 
@@ -30,8 +39,9 @@ const storageDirectory = await mkdtemp(join(tmpdir(), "graphvault-studio-smoke-"
 
 try {
   const root = new Workspace("Developer docs");
-  root.documents.push(new Document("doc-1", "Storage configuration", 12));
-  const review = new Document("doc-2", "Admin review", 24);
+  const owner = new Owner("owner-1", "Platform Team");
+  root.documents.push(new Document("doc-1", "Storage configuration", owner, 12));
+  const review = new Document("doc-2", "Admin review", owner, 24);
   review.status = "published";
   review.archivedAt = "2026-05-10";
   root.documents.push(review);
@@ -60,6 +70,20 @@ try {
   assert.equal(gvql.plan.candidateSource, "type-index");
   assert.equal(gvql.plan.returnedRows, 1);
 
+  const multiMatch = await client.gvql(`
+    MATCH (workspace:Workspace)-[:documents]->(items)-[:*]->(doc:Document), (doc)-[:owner]->(owner:Owner)
+    WHERE workspace.name = "Developer docs" AND owner.name = "Platform Team"
+    RETURN workspace.name AS workspace, doc.id AS id, owner.name AS owner
+    ORDER BY doc.id ASC
+  `);
+  assert.equal(multiMatch.kind, "select");
+  assert.deepEqual(multiMatch.rows, [
+    { workspace: "Developer docs", id: "doc-1", owner: "Platform Team" },
+    { workspace: "Developer docs", id: "doc-2", owner: "Platform Team" },
+  ]);
+  assert.equal(multiMatch.statement.matches.length, 2);
+  assert.equal(multiMatch.plan.operations.includes("multi-match:2"), true);
+
   const paged = await client.gvql("MATCH (doc:Document) RETURN doc.id AS id ORDER BY doc.id ASC LIMIT 1 OFFSET 1");
   assert.equal(paged.kind, "select");
   assert.deepEqual(paged.rows, [{ id: "doc-2" }]);
@@ -83,7 +107,7 @@ try {
 
   const distinctTypeCount = await client.gvql("MATCH (node) WHERE node.$type IS NOT NULL RETURN count(DISTINCT node.$type) AS types");
   assert.equal(distinctTypeCount.kind, "select");
-  assert.deepEqual(distinctTypeCount.rows, [{ types: 2 }]);
+  assert.deepEqual(distinctTypeCount.rows, [{ types: 3 }]);
 
   const nullFilter = await client.gvql("MATCH (doc:Document) WHERE doc.archivedAt IS NULL AND doc.status IS NOT NULL RETURN doc.id AS id ORDER BY doc.id ASC");
   assert.equal(nullFilter.kind, "select");
