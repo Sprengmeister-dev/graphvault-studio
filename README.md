@@ -37,6 +37,10 @@ npm install graphvault-studio
 
 ## Run
 
+### File-Based Store
+
+The CLI reads a local GraphVault storage directory. This is the common setup for a service, desktop app, or local development environment.
+
 ```bash
 npx graphvault-studio --dir ./data --port 4177
 ```
@@ -62,6 +66,61 @@ Then open:
 ```text
 http://127.0.0.1:4177
 ```
+
+### Remote Or Custom Storage
+
+For remote storage, start Studio programmatically and pass the same `storageTarget` adapter your app uses. `storageDirectory` is still required; for remote targets it acts as the key prefix or logical root path inside the target.
+
+```ts
+import { S3StorageTarget } from "graphvault";
+import { startAdminServer } from "graphvault-studio";
+
+await startAdminServer({
+  storageDirectory: "prod/app-store",
+  storageTarget: new S3StorageTarget({
+    bucket: "graphvault-prod",
+    prefix: "stores",
+    client: s3ClientAdapter,
+  }),
+  port: 4177,
+  authToken: process.env.GRAPHVAULT_ADMIN_TOKEN,
+});
+```
+
+HTTP-backed storage works the same way:
+
+```ts
+import { HttpStorageTarget } from "graphvault";
+import { startAdminServer } from "graphvault-studio";
+
+await startAdminServer({
+  storageDirectory: "main",
+  storageTarget: new HttpStorageTarget({
+    baseUrl: "https://storage.example.com/graphvault",
+    headers: { authorization: `Bearer ${process.env.STORAGE_TOKEN}` },
+  }),
+  port: 4177,
+});
+```
+
+SQL-backed storage uses an adapter around your database client:
+
+```ts
+import { SqlStorageTarget } from "graphvault";
+import { startAdminServer } from "graphvault-studio";
+
+await startAdminServer({
+  storageDirectory: "main",
+  storageTarget: new SqlStorageTarget({
+    client: sqlClientAdapter,
+    tableName: "graphvault_objects",
+    lockTableName: "graphvault_locks",
+  }),
+  port: 4177,
+});
+```
+
+For mutation endpoints, always set `allowMutations: true` and a `mutationConfirmToken`. For exposed or shared environments, also set `authToken`.
 
 ## Relationship To GraphVault Library
 
