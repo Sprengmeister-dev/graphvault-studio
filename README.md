@@ -1,5 +1,10 @@
 # GraphVault Studio
 
+[![CI](https://github.com/Sprengmeister-dev/graphvault-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/Sprengmeister-dev/graphvault-studio/actions/workflows/ci.yml)
+![Node](https://img.shields.io/badge/node-%3E%3D20-3c7a52)
+![TypeScript](https://img.shields.io/badge/TypeScript-first-315c92)
+![License](https://img.shields.io/badge/license-MIT-2f2f2f)
+
 GraphVault Studio is the graphical admin client for [GraphVault](https://github.com/Sprengmeister-dev/graphvault-library) stores. It lets you inspect, search, verify, maintain, back up, and carefully edit object graph data without pretending the store is a table database.
 
 ![GraphVault Studio screenshot](./assets/studio-screenshot.png)
@@ -150,4 +155,5 @@ The storage engine lives in [graphvault-library](https://github.com/Sprengmeiste
 - Studio is a pure TypeScript package with no frontend build toolchain.
 - The UI is served from the embedded admin server, so `npx graphvault-studio --dir ./data` is enough to inspect a store.
 - The package depends on GraphVault Library for storage layout, verification, parent index reading, and storage targets.
-- Run `npm run build` to type-check and emit `dist/`.
+- Run `npm test` to type-check, emit `dist/`, create a real store, exercise the admin client, and verify the embedded HTTP API.
+- CI runs on Node.js 20 and 22.

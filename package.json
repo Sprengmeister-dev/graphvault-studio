@@ -27,13 +27,16 @@
   },
   "files": [
     "assets",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
     "dist",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build",
+    "test": "npm run build && node tests/smoke.mjs",
+    "pack:dry-run": "npm pack --dry-run --cache ./.npm-cache",
     "prepack": "npm run build"
   },
   "keywords": [
