@@ -160,6 +160,13 @@ OFFSET 0
 ```
 
 ```sql
+MATCH (node)
+WHERE node.$type IN ["Document", "Workspace"]
+RETURN node.$id AS objectId, node.$type AS type
+ORDER BY node.$type ASC, node.$id ASC
+```
+
+```sql
 MATCH (doc:Document)-[:owner]->(owner:Owner)
 WHERE owner.name = "Platform Team"
 RETURN doc.id AS id, doc.title AS title

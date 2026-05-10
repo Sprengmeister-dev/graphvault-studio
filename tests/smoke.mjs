@@ -71,6 +71,11 @@ try {
   assert.equal(metadata.rows[0].type, "Document");
   assert.equal(metadata.rows[0].kind, "object");
 
+  const metadataTypeIndex = await client.gvql('MATCH (node) WHERE node.$type IN ["Document"] RETURN count(*) AS count');
+  assert.equal(metadataTypeIndex.kind, "select");
+  assert.deepEqual(metadataTypeIndex.rows, [{ count: 2 }]);
+  assert.equal(metadataTypeIndex.plan.candidateSource, "type-index");
+
   const distinct = await client.gvql("MATCH (doc:Document) RETURN DISTINCT doc.status AS status ORDER BY status ASC");
   assert.equal(distinct.kind, "select");
   assert.deepEqual(distinct.rows, [{ status: "draft" }, { status: "published" }]);
