@@ -109,6 +109,12 @@ try {
   assert.equal(indexedOr.plan.candidateSource, "property-index");
   assert.equal(indexedOr.plan.operations.includes("index-or-union:2"), true);
 
+  const parenthesizedWhere = await client.gvql(
+    'MATCH (doc:Document) WHERE (doc.id = "doc-1" OR doc.status = "published") AND doc.views > 20 RETURN doc.id AS id ORDER BY doc.id ASC',
+  );
+  assert.equal(parenthesizedWhere.kind, "select");
+  assert.deepEqual(parenthesizedWhere.rows, [{ id: "doc-2" }]);
+
   const multiOrder = await client.gvql("MATCH (doc:Document) RETURN doc.status AS status, count(*) AS count GROUP BY doc.status ORDER BY count DESC, status ASC");
   assert.equal(multiOrder.kind, "select");
   assert.deepEqual(multiOrder.rows, [
@@ -133,6 +139,18 @@ try {
   ]);
   assert.equal(aggregate.plan.grouped, true);
   assert.equal(aggregate.plan.having, true);
+
+  const parenthesizedHaving = await client.gvql(
+    `
+      MATCH (doc:Document)
+      RETURN doc.status AS status, count(*) AS count, avg(doc.views) AS avgViews
+      GROUP BY doc.status
+      HAVING (status = "draft" OR status = "published") AND avgViews > 20
+      ORDER BY status ASC
+    `,
+  );
+  assert.equal(parenthesizedHaving.kind, "select");
+  assert.deepEqual(parenthesizedHaving.rows, [{ status: "published", count: 1, avgViews: 24 }]);
 
   const preview = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-2" SET doc.status = "review" RETURN count(*) AS changed', {
     dryRun: true,
