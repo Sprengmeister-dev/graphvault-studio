@@ -81,6 +81,10 @@ try {
   assert.deepEqual(distinct.rows, [{ status: "draft" }, { status: "published" }]);
   assert.equal(distinct.plan.distinct, true);
 
+  const distinctTypeCount = await client.gvql("MATCH (node) WHERE node.$type IS NOT NULL RETURN count(DISTINCT node.$type) AS types");
+  assert.equal(distinctTypeCount.kind, "select");
+  assert.deepEqual(distinctTypeCount.rows, [{ types: 2 }]);
+
   const nullFilter = await client.gvql("MATCH (doc:Document) WHERE doc.archivedAt IS NULL AND doc.status IS NOT NULL RETURN doc.id AS id ORDER BY doc.id ASC");
   assert.equal(nullFilter.kind, "select");
   assert.deepEqual(nullFilter.rows, [{ id: "doc-1" }]);
