@@ -45,6 +45,7 @@ try {
   review.status = "published";
   review.archivedAt = "2026-05-10";
   root.documents.push(review);
+  root.documents[0].related = [review];
 
   const storage = await EmbeddedStorage.start({ storageDirectory, root, types });
   await storage.storeRoot();
@@ -83,6 +84,20 @@ try {
   ]);
   assert.equal(multiMatch.statement.matches.length, 2);
   assert.equal(multiMatch.plan.operations.includes("multi-match:2"), true);
+
+  const optionalMatch = await client.gvql(`
+    MATCH (doc:Document)
+    OPTIONAL MATCH (doc)-[:related]->(items)-[:*]->(related:Document)
+    RETURN doc.id AS id, related.id AS relatedId
+    ORDER BY doc.id ASC
+  `);
+  assert.equal(optionalMatch.kind, "select");
+  assert.deepEqual(optionalMatch.rows, [
+    { id: "doc-1", relatedId: "doc-2" },
+    { id: "doc-2", relatedId: undefined },
+  ]);
+  assert.equal(optionalMatch.statement.optionalMatches.length, 1);
+  assert.equal(optionalMatch.plan.operations.includes("optional-match:doc"), true);
 
   const paged = await client.gvql("MATCH (doc:Document) RETURN doc.id AS id ORDER BY doc.id ASC LIMIT 1 OFFSET 1");
   assert.equal(paged.kind, "select");
