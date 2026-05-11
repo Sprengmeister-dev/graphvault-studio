@@ -9,6 +9,13 @@ import { executeGvqlStatement, parseGvql } from "@sprengmeister/graphvault/inter
 import { referencedChildren, summarizeNode, visitNode } from "./admin-inspection.js";
 import { encodeAdminValue, getNodePath, setNodePath } from "./admin-mutation.js";
 import { pathFromObjectToRoot } from "./admin-parent-index.js";
+import {
+  envelopeFromAdminManifest,
+  readAdminObjectRecord,
+  writeAdminManifest,
+  writeAdminObjectRecords,
+  type VersionedStorageManifest,
+} from "./admin-storage-io.js";
 import type {
   BackupResult,
   MaintenanceResult,
@@ -139,7 +146,7 @@ export class StorageAdminClient {
     const offset = Math.max(0, options.offset ?? 0);
     const limit = Math.min(500, Math.max(1, options.limit ?? manifest.objectIds.length));
     for (const objectId of manifest.objectIds.slice(offset, offset + limit)) {
-      const record = await this.reader.readObjectRecord(objectId);
+      const record = await this.readObjectRecord(manifest, objectId);
       items.push({
         objectId,
         kind: record.node.kind,
@@ -152,7 +159,7 @@ export class StorageAdminClient {
   }
 
   async getObject(objectId: string): Promise<ObjectRecord> {
-    return this.reader.readObjectRecord(objectId);
+    return this.readObjectRecord(await this.requireManifest(), objectId);
   }
 
   async rootReference(): Promise<AdminRootReference> {
@@ -164,10 +171,11 @@ export class StorageAdminClient {
   }
 
   async listObjectChildren(objectId: string): Promise<AdminObjectChild[]> {
-    const record = await this.reader.readObjectRecord(objectId);
+    const manifest = await this.requireManifest();
+    const record = await this.readObjectRecord(manifest, objectId);
     const children: AdminObjectChild[] = [];
     for (const [path, to] of referencedChildren(record.node)) {
-      const child = await this.reader.readObjectRecord(to);
+      const child = await this.readObjectRecord(manifest, to);
       children.push({
         from: objectId,
         to,
@@ -183,12 +191,12 @@ export class StorageAdminClient {
   async hierarchyPath(targetObjectId: string): Promise<AdminHierarchyPath> {
     const manifest = await this.requireManifest();
     const index = await this.parentIndexFor(manifest);
-    return pathFromObjectToRoot(index, targetObjectId, (objectId) => this.reader.readObjectRecord(objectId));
+    return pathFromObjectToRoot(index, targetObjectId, (objectId) => this.readObjectRecord(manifest, objectId));
   }
 
   async graph(): Promise<AdminGraph> {
     const manifest = await this.requireManifest();
-    const envelope = await this.reader.envelopeFromManifest(manifest);
+    const envelope = await this.envelopeFromManifest(manifest);
     const nodes: AdminGraphNode[] = [];
     const edges: AdminGraphEdge[] = [];
     for (const [objectId, node] of Object.entries(envelope.nodes)) {
@@ -215,7 +223,7 @@ export class StorageAdminClient {
     const limit = Math.min(500, Math.max(1, options.limit ?? 500));
     const results: AdminSearchResult[] = [];
     for (const objectId of manifest.objectIds) {
-      const record = await this.reader.readObjectRecord(objectId);
+      const record = await this.readObjectRecord(manifest, objectId);
       visitNode(record.node, (path, value) => {
         if (results.length >= limit) {
           return;
@@ -234,7 +242,7 @@ export class StorageAdminClient {
 
   async gvql(query: string, options: GvqlExecutionOptions = {}): Promise<GvqlResult> {
     const manifest = await this.requireManifest();
-    const envelope = await this.reader.envelopeFromManifest(manifest);
+    const envelope = await this.envelopeFromManifest(manifest);
     const statement = parseGvql(query);
     const result = executeGvqlStatement(envelope, statement, {
       ...options,
@@ -285,12 +293,21 @@ export class StorageAdminClient {
   }
 
   async verify(): Promise<VerificationResult> {
+    let manifest: VersionedStorageManifest | undefined;
     return verifyStorage({
       target: this.target,
       lazyDirectory: this.layout.lazyDirectory,
-      readManifest: () => this.reader.readManifest(),
+      readManifest: async () => {
+        manifest = await this.reader.readManifest() as VersionedStorageManifest | undefined;
+        return manifest;
+      },
       readLatestTransactionRecord: () => this.reader.readLatestTransactionRecord(),
-      readObjectRecord: (objectId) => this.reader.readObjectRecord(objectId),
+      readObjectRecord: (objectId) => {
+        if (!manifest) {
+          throw new Error("Storage manifest not found or unreadable.");
+        }
+        return this.readObjectRecord(manifest, objectId);
+      },
     });
   }
 
@@ -314,7 +331,7 @@ export class StorageAdminClient {
 
   async previewMutation(mutation: AdminMutation): Promise<AdminMutationPreview> {
     const manifest = await this.requireManifest();
-    const envelope = await this.reader.envelopeFromManifest(manifest);
+    const envelope = await this.envelopeFromManifest(manifest);
     const node = envelope.nodes[mutation.objectId];
     if (!node) {
       throw new Error(`Object ${mutation.objectId} does not exist.`);
@@ -330,7 +347,7 @@ export class StorageAdminClient {
   async mutate(mutation: AdminMutation): Promise<TransactionRecord> {
     this.assertMutationsAllowed();
     const manifest = await this.requireManifest();
-    const envelope = await this.reader.envelopeFromManifest(manifest);
+    const envelope = await this.envelopeFromManifest(manifest);
     const node = envelope.nodes[mutation.objectId];
     if (!node) {
       throw new Error(`Object ${mutation.objectId} does not exist.`);
@@ -372,7 +389,7 @@ export class StorageAdminClient {
           envelope,
         } satisfies StudioWalPrepareRecord);
       }
-      await this.writer.writeObjectRecords(envelope, transactionId, objectIds);
+      await writeAdminObjectRecords(this.target, this.layout, envelope, transactionId, objectIds);
       await this.writer.writeJson(join(this.layout.snapshotsDirectory, snapshotFile), envelope);
       await this.assertLockValid(lock);
       if (this.transactionLogEnabled) {
@@ -401,19 +418,27 @@ export class StorageAdminClient {
       await this.writer.writeParentIndex(envelope, transactionId);
       await this.assertLockValid(lock);
       await this.target.writeTextAtomic(this.layout.currentFile, snapshotFile);
-      await this.writer.writeManifest(envelope, transactionId);
+      await writeAdminManifest(this.target, this.layout, envelope, transactionId);
       return record;
     } finally {
       await lock.release();
     }
   }
 
-  private async requireManifest(): Promise<StorageManifest> {
-    const manifest = await this.reader.readManifest();
+  private async requireManifest(): Promise<VersionedStorageManifest> {
+    const manifest = await this.reader.readManifest() as VersionedStorageManifest | undefined;
     if (!manifest) {
       throw new Error("Storage manifest not found or unreadable.");
     }
     return manifest;
+  }
+
+  private readObjectRecord(manifest: VersionedStorageManifest, objectId: string): Promise<ObjectRecord> {
+    return readAdminObjectRecord(this.target, this.layout, manifest, objectId);
+  }
+
+  private envelopeFromManifest(manifest: VersionedStorageManifest): Promise<SerializedEnvelope> {
+    return envelopeFromAdminManifest(this.target, this.layout, manifest);
   }
 
   private get walDirectory(): string {
@@ -434,7 +459,7 @@ export class StorageAdminClient {
     };
   }
 
-  private async operations(manifest: StorageManifest, latestTransaction?: TransactionRecord): Promise<AdminOperationalStatus> {
+  private async operations(manifest: VersionedStorageManifest, latestTransaction?: TransactionRecord): Promise<AdminOperationalStatus> {
     const walFiles = await this.reader.readDirectoryIfExists(this.walDirectory);
     const prepareFiles = walFiles.filter((file) => file.endsWith(".prepare.json"));
     const commitFiles = walFiles.filter((file) => file.endsWith(".commit.json"));
@@ -515,7 +540,8 @@ export class StorageAdminClient {
 
   private async collectGarbage(): Promise<MaintenanceResult["garbageCollection"]> {
     const manifest = await this.requireManifest();
-    const liveObjects = new Set(manifest.objectIds);
+    const liveJsonRecords = liveObjectRecordFiles(manifest, "json");
+    const liveBinaryRecords = liveObjectRecordFiles(manifest, "bin");
     let keptObjects = 0;
     let removedObjects = 0;
     let keptBinaryObjects = 0;
@@ -523,8 +549,7 @@ export class StorageAdminClient {
     for (const directory of this.layout.objectRecordDirectories("json")) {
       for (const file of await this.reader.readDirectoryIfExists(directory)) {
         if (!file.endsWith(".json")) continue;
-        const objectId = file.slice(0, -".json".length);
-        if (liveObjects.has(objectId)) keptObjects++;
+        if (liveJsonRecords.has(file)) keptObjects++;
         else {
           await this.target.remove(join(directory, file));
           removedObjects++;
@@ -534,8 +559,7 @@ export class StorageAdminClient {
     for (const directory of this.layout.objectRecordDirectories("binary")) {
       for (const file of await this.reader.readDirectoryIfExists(directory)) {
         if (!file.endsWith(".bin")) continue;
-        const objectId = file.slice(0, -".bin".length);
-        if (liveObjects.has(objectId)) keptBinaryObjects++;
+        if (liveBinaryRecords.has(file)) keptBinaryObjects++;
         else {
           await this.target.remove(join(directory, file));
           removedBinaryObjects++;
@@ -551,15 +575,24 @@ export class StorageAdminClient {
     }
   }
 
-  private async parentIndexFor(manifest: StorageManifest): Promise<ParentIndexRecord> {
+  private async parentIndexFor(manifest: VersionedStorageManifest): Promise<ParentIndexRecord> {
     if (!this.parentIndex || this.parentIndex.transactionId !== manifest.transactionId) {
       const storedIndex = await this.reader.readParentIndex();
       if (storedIndex?.transactionId === manifest.transactionId) {
         this.parentIndex = storedIndex;
       } else {
-        this.parentIndex = buildParentIndexRecord(await this.reader.envelopeFromManifest(manifest), manifest.transactionId);
+        this.parentIndex = buildParentIndexRecord(await this.envelopeFromManifest(manifest), manifest.transactionId);
       }
     }
     return this.parentIndex;
   }
+}
+
+function liveObjectRecordFiles(manifest: VersionedStorageManifest, extension: "json" | "bin"): Set<string> {
+  const files = new Set<string>();
+  for (const objectId of manifest.objectIds) {
+    files.add(`${objectId}.${extension}`);
+    files.add(`${objectId}.${manifest.objectVersions?.[objectId] ?? manifest.transactionId}.${extension}`);
+  }
+  return files;
 }

@@ -44,6 +44,7 @@ It is deliberately generic. It does not assume customers, orders, tickets, CMS p
 - graph edge view
 - GVQL query console for graph queries and batch-update previews
 - editable primitive fields with preview and confirmation-token safety
+- reads and writes versioned GraphVault object records used by crash-safe 0.2+ stores
 - admin mutations use writer locks, WAL prepare/commit records, and fencing-token validation when the installed GraphVault Library supports it
 - operational hardening KPIs and an Operations view for WAL mode, pending WAL recovery, writer lock status, mutation mode, and latest transaction
 - verification, maintenance, backup, transaction and journal views

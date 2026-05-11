@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { EmbeddedStorage } from "@sprengmeister/graphvault";
@@ -50,6 +50,7 @@ try {
   const storage = await EmbeddedStorage.start({ storageDirectory, root, types });
   await storage.storeRoot();
   await storage.shutdown();
+  await convertStoreToVersionedObjectRecords(storageDirectory);
 
   const client = new StorageAdminClient({ storageDirectory, allowMutations: true });
   const summary = await client.summary();
@@ -324,8 +325,17 @@ try {
   assert.equal(mutationPreview.before, "Developer docs");
   const mutationRecord = await client.mutate({ objectId: rootReference.rootObjectId, path: "name", value: "Developer docs" });
   assert.equal(typeof mutationRecord.transactionId, "number");
+  const postMutationManifest = JSON.parse(await readFile(join(storageDirectory, "manifest.json"), "utf8"));
+  assert.equal(postMutationManifest.objectVersions[rootReference.rootObjectId], mutationRecord.transactionId);
+  await readdir(join(storageDirectory, "objects-bin")).then((files) =>
+    assert.equal(files.includes(`${rootReference.rootObjectId}.${mutationRecord.transactionId}.bin`), true),
+  );
   const mutatedRootName = await client.gvql("MATCH (workspace:Workspace) RETURN workspace.name AS name");
   assert.deepEqual(mutatedRootName.rows, [{ name: "Developer docs" }]);
+  const maintenance = await client.maintain({ keepSnapshots: 2 });
+  assert.equal(maintenance.verification.ok, true);
+  const afterMaintenanceRootName = await client.gvql("MATCH (workspace:Workspace) RETURN workspace.name AS name");
+  assert.deepEqual(afterMaintenanceRootName.rows, [{ name: "Developer docs" }]);
 
   const mergeExistingPreview = await client.gvql(
     `
@@ -356,6 +366,20 @@ try {
   await assertAdminServer(storageDirectory);
 } finally {
   await rm(storageDirectory, { recursive: true, force: true });
+}
+
+async function convertStoreToVersionedObjectRecords(storageDirectory) {
+  const manifestPath = join(storageDirectory, "manifest.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.objectVersions = {};
+  for (const objectId of manifest.objectIds) {
+    manifest.objectVersions[objectId] = manifest.transactionId;
+    await copyFile(join(storageDirectory, "objects-bin", `${objectId}.bin`), join(storageDirectory, "objects-bin", `${objectId}.${manifest.transactionId}.bin`));
+    await copyFile(join(storageDirectory, "objects", `${objectId}.json`), join(storageDirectory, "objects", `${objectId}.${manifest.transactionId}.json`));
+    await rm(join(storageDirectory, "objects-bin", `${objectId}.bin`), { force: true });
+    await rm(join(storageDirectory, "objects", `${objectId}.json`), { force: true });
+  }
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
 async function assertAdminServer(storageDirectory) {

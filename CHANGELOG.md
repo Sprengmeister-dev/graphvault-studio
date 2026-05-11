@@ -6,6 +6,7 @@
 - Add WAL-backed admin mutation commits with writer-lock protection and optional fencing-token validation.
 - Add operational hardening information to the summary API, Studio KPI bar, `/api/operations`, and a dedicated Operations view.
 - Publish `manifest.json` last for Studio mutation commits so late metadata failures remain recoverable instead of partially visible.
+- Add versioned object-record read/write compatibility for GraphVault 0.2+ stores and maintenance.
 
 ## 0.1.1
 
