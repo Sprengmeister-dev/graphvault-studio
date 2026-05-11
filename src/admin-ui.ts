@@ -309,7 +309,8 @@ OFFSET 0</textarea>
     }
     async function refreshKpis() {
       const summary = await requestJson('/api/summary?verify=false');
-      kpis.innerHTML = kpi('Objects', summary.objectCount) + kpi('Transaction', summary.transactionId) + kpi('Verify', summary.verification ? (summary.verification.ok ? 'OK' : 'FAIL') : 'manual') + kpi('Snapshot', summary.currentSnapshot || '-');
+      const hardening = summary.hardening || {};
+      kpis.innerHTML = kpi('Objects', summary.objectCount) + kpi('Transaction', summary.transactionId) + kpi('WAL', hardening.transactionLog || '-') + kpi('Lock', hardening.writerLock || '-') + kpi('Verify', summary.verification ? (summary.verification.ok ? 'OK' : 'FAIL') : 'manual') + kpi('Snapshot', summary.currentSnapshot || '-');
       return summary;
     }
     async function showHierarchy() {

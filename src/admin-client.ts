@@ -14,8 +14,11 @@ import type {
   MaintenanceResult,
   ObjectRecord,
   ParentIndexRecord,
+  SerializedEnvelope,
   StorageManifest,
   StorageTarget,
+  StorageTargetLock,
+  StoreMode,
   TransactionRecord,
   TypeDictionary,
   VerificationResult,
@@ -37,8 +40,36 @@ import type {
   AdminRootReference,
   AdminSearchResult,
   AdminSummary,
+  AdminStorageHardening,
   StorageAdminClientOptions,
 } from "./admin-types.js";
+
+type MaybeFencedLock = StorageTargetLock & {
+  fencingToken?: number;
+  assertValid?: () => Promise<void>;
+};
+
+interface StudioWalPrepareRecord {
+  format: "graphvault-wal";
+  version: 1;
+  status: "prepared";
+  transactionId: number;
+  preparedAt: string;
+  snapshotFile: string;
+  objectIds: string[];
+  mode: StoreMode;
+  targetCount: number;
+  envelope: SerializedEnvelope;
+}
+
+interface StudioWalCommitRecord {
+  format: "graphvault-wal";
+  version: 1;
+  status: "committed";
+  transactionId: number;
+  committedAt: string;
+  prepareFile: string;
+}
 
 export type {
   AdminGraph,
@@ -90,6 +121,7 @@ export class StorageAdminClient {
       objectCount: manifest.objectIds.length,
       ...(latestTransaction ? { latestTransaction } : {}),
       ...(typeDictionary ? { typeDictionary } : {}),
+      hardening: this.hardening(),
       ...(verification ? { verification } : { verificationSkipped: true }),
     };
   }
@@ -206,24 +238,7 @@ export class StorageAdminClient {
       allowMutations: this.allowMutations && statement.kind === "update" && !options.dryRun,
     });
     if (result.kind === "update" && !result.dryRun) {
-      const transactionId = manifest.transactionId + 1;
-      const snapshotFile = `snapshot-${String(transactionId).padStart(12, "0")}.json`;
-      const changedObjectIds = Array.from(new Set(result.changes.map((change) => change.objectId))).sort((a, b) => Number(a) - Number(b));
-      await this.writer.writeObjectRecords(envelope, transactionId, changedObjectIds);
-      await this.writer.writeManifest(envelope, transactionId);
-      await this.writer.writeParentIndex(envelope, transactionId);
-      await this.writer.writeJson(join(this.layout.snapshotsDirectory, snapshotFile), envelope);
-      await this.target.writeTextAtomic(this.layout.currentFile, snapshotFile);
-      await this.writer.writeTransactionRecord({
-        format: "graphvault-transaction",
-        version: 1,
-        transactionId,
-        committedAt: new Date().toISOString(),
-        snapshotFile,
-        objectIds: Object.keys(envelope.nodes).sort((a, b) => Number(a) - Number(b)),
-        mode: "standard",
-        targetCount: changedObjectIds.length,
-      });
+      await this.commitEnvelope(manifest.transactionId, envelope, "standard", result.changes.length);
       this.parentIndex = undefined;
     }
     return result;
@@ -318,26 +333,76 @@ export class StorageAdminClient {
       throw new Error(`Object ${mutation.objectId} does not exist.`);
     }
     setNodePath(node, mutation.path, encodeAdminValue(mutation.value));
-    const transactionId = manifest.transactionId + 1;
-    const snapshotFile = `snapshot-${String(transactionId).padStart(12, "0")}.json`;
-    await this.writer.writeObjectRecords(envelope, transactionId, Object.keys(envelope.nodes));
-    await this.writer.writeManifest(envelope, transactionId);
-    await this.writer.writeParentIndex(envelope, transactionId);
-    await this.writer.writeJson(join(this.layout.snapshotsDirectory, snapshotFile), envelope);
-    await this.target.writeTextAtomic(this.layout.currentFile, snapshotFile);
-    const record: TransactionRecord = {
-      format: "graphvault-transaction",
-      version: 1,
-      transactionId,
-      committedAt: new Date().toISOString(),
-      snapshotFile,
-      objectIds: Object.keys(envelope.nodes).sort((a, b) => Number(a) - Number(b)),
-      mode: "standard",
-      targetCount: 1,
-    };
-    await this.writer.writeTransactionRecord(record);
+    const record = await this.commitEnvelope(manifest.transactionId, envelope, "standard", 1);
     this.parentIndex = undefined;
     return record;
+  }
+
+  private async commitEnvelope(
+    expectedTransactionId: number,
+    envelope: SerializedEnvelope,
+    mode: StoreMode,
+    targetCount: number,
+  ): Promise<TransactionRecord> {
+    await this.target.ensureDirectory(this.walDirectory);
+    const lock = await this.acquireWriteLock();
+    try {
+      const latestManifest = await this.requireManifest();
+      if (latestManifest.transactionId !== expectedTransactionId) {
+        throw new Error(`Store changed concurrently. Expected transaction ${expectedTransactionId}, found ${latestManifest.transactionId}.`);
+      }
+      const transactionId = expectedTransactionId + 1;
+      const snapshotFile = `snapshot-${String(transactionId).padStart(12, "0")}.json`;
+      const objectIds = Object.keys(envelope.nodes).sort((a, b) => Number(a) - Number(b));
+      const prepareFile = `transaction-${String(transactionId).padStart(12, "0")}.prepare.json`;
+      if (this.transactionLogEnabled) {
+        await this.writeWalJson(prepareFile, {
+          format: "graphvault-wal",
+          version: 1,
+          status: "prepared",
+          transactionId,
+          preparedAt: new Date().toISOString(),
+          snapshotFile,
+          objectIds,
+          mode,
+          targetCount,
+          envelope,
+        } satisfies StudioWalPrepareRecord);
+      }
+      await this.writer.writeObjectRecords(envelope, transactionId, objectIds);
+      await this.writer.writeJson(join(this.layout.snapshotsDirectory, snapshotFile), envelope);
+      await this.assertLockValid(lock);
+      if (this.transactionLogEnabled) {
+        await this.writeWalJson(`transaction-${String(transactionId).padStart(12, "0")}.commit.json`, {
+          format: "graphvault-wal",
+          version: 1,
+          status: "committed",
+          transactionId,
+          committedAt: new Date().toISOString(),
+          prepareFile,
+        } satisfies StudioWalCommitRecord);
+      }
+      await this.assertLockValid(lock);
+      await this.writer.writeParentIndex(envelope, transactionId);
+      await this.writer.writeManifest(envelope, transactionId);
+      await this.assertLockValid(lock);
+      await this.target.writeTextAtomic(this.layout.currentFile, snapshotFile);
+      await this.assertLockValid(lock);
+      const record: TransactionRecord = {
+        format: "graphvault-transaction",
+        version: 1,
+        transactionId,
+        committedAt: new Date().toISOString(),
+        snapshotFile,
+        objectIds,
+        mode,
+        targetCount,
+      };
+      await this.writer.writeTransactionRecord(record);
+      return record;
+    } finally {
+      await lock.release();
+    }
   }
 
   private async requireManifest(): Promise<StorageManifest> {
@@ -346,6 +411,47 @@ export class StorageAdminClient {
       throw new Error("Storage manifest not found or unreadable.");
     }
     return manifest;
+  }
+
+  private get walDirectory(): string {
+    return join(this.options.storageDirectory, "wal");
+  }
+
+  private get transactionLogEnabled(): boolean {
+    return (this.options.transactionLog ?? "full") === "full";
+  }
+
+  private hardening(): AdminStorageHardening {
+    return {
+      mutationsAllowed: this.allowMutations,
+      transactionLog: this.options.transactionLog ?? "full",
+      writerLock: "enabled",
+      fencingTokens: "used-when-supported",
+      staleLockRecovery: typeof this.options.staleLockTimeoutMs === "number",
+    };
+  }
+
+  private async acquireWriteLock(): Promise<MaybeFencedLock> {
+    const acquireLock = this.target.acquireLock as (
+      path: string,
+      timeoutMs: number,
+      options?: { staleLockTimeoutMs?: number },
+    ) => Promise<MaybeFencedLock>;
+    return acquireLock(this.layout.lockFile, this.options.lockTimeoutMs ?? 5_000, this.lockOptions());
+  }
+
+  private lockOptions(): { staleLockTimeoutMs?: number } {
+    return typeof this.options.staleLockTimeoutMs === "number" ? { staleLockTimeoutMs: this.options.staleLockTimeoutMs } : {};
+  }
+
+  private async assertLockValid(lock: MaybeFencedLock): Promise<void> {
+    if (lock.assertValid) {
+      await lock.assertValid();
+    }
+  }
+
+  private async writeWalJson(file: string, value: unknown): Promise<void> {
+    await this.target.writeTextAtomic(join(this.walDirectory, file), `${JSON.stringify(value, null, 2)}\n`);
   }
 
   private async compact(keepLatest: number): Promise<{ kept: number; removed: number }> {

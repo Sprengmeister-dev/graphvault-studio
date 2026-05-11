@@ -3,6 +3,8 @@
 ## 0.1.2
 
 - Publish the Studio CLI under the unscoped `graphvault-studio` npm package name for a reliable `npx graphvault-studio` install path.
+- Add WAL-backed admin mutation commits with writer-lock protection and optional fencing-token validation.
+- Add operational hardening information to the summary API and Studio KPI bar.
 
 ## 0.1.1
 

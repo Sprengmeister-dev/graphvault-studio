@@ -15,6 +15,17 @@ export interface StorageAdminClientOptions {
   storageTarget?: StorageTarget;
   channelCount?: number;
   allowMutations?: boolean;
+  lockTimeoutMs?: number;
+  staleLockTimeoutMs?: number;
+  transactionLog?: "full" | "off";
+}
+
+export interface AdminStorageHardening {
+  mutationsAllowed: boolean;
+  transactionLog: "full" | "off";
+  writerLock: "enabled";
+  fencingTokens: "used-when-supported";
+  staleLockRecovery: boolean;
 }
 
 export interface AdminSummary {
@@ -24,6 +35,7 @@ export interface AdminSummary {
   objectCount: number;
   latestTransaction?: TransactionRecord;
   typeDictionary?: TypeDictionary;
+  hardening: AdminStorageHardening;
   verification?: VerificationResult;
   verificationSkipped?: boolean;
 }

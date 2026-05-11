@@ -44,6 +44,8 @@ It is deliberately generic. It does not assume customers, orders, tickets, CMS p
 - graph edge view
 - GVQL query console for graph queries and batch-update previews
 - editable primitive fields with preview and confirmation-token safety
+- admin mutations use writer locks, WAL prepare/commit records, and fencing-token validation when the installed GraphVault Library supports it
+- operational hardening KPIs for WAL mode, writer lock status, verification, and latest transaction
 - verification, maintenance, backup, transaction and journal views
 - optional bearer-token protection
 - zero frontend build step; the UI is embedded in the TypeScript package
@@ -92,6 +94,17 @@ Optional auth:
 ```bash
 GRAPHVAULT_ADMIN_TOKEN=secret npx graphvault-studio --dir ./data
 ```
+
+For critical stores, run Studio with mutations behind authentication and a confirmation token:
+
+```bash
+GRAPHVAULT_ADMIN_TOKEN=secret npx graphvault-studio \
+  --dir ./data \
+  --allow-mutations \
+  --confirm-token "$(openssl rand -hex 16)"
+```
+
+Studio mutation commits are written through the same storage-level safety shape expected from GraphVault deployments: writer lock, WAL prepare, data write, WAL commit marker, manifest publish, and transaction journal. With GraphVault Library 0.2 or newer, fencing tokens prevent stale recovered writers from publishing or releasing newer locks.
 
 Then open:
 

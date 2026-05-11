@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { EmbeddedStorage } from "@sprengmeister/graphvault";
@@ -55,6 +55,8 @@ try {
   const summary = await client.summary();
   assert.equal(summary.objectCount > 0, true);
   assert.equal(summary.verification.ok, true);
+  assert.equal(summary.hardening.transactionLog, "full");
+  assert.equal(summary.hardening.writerLock, "enabled");
 
   const rootReference = await client.rootReference();
   assert.equal(typeof rootReference.rootObjectId, "string");
@@ -311,6 +313,16 @@ try {
   const createdField = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-3" RETURN doc.title AS title, doc.views AS views');
   assert.equal(createdField.kind, "select");
   assert.deepEqual(createdField.rows, [{ title: "Release checklist", views: 9 }]);
+  const walFiles = await readdir(join(storageDirectory, "wal"));
+  assert.equal(walFiles.some((file) => file.endsWith(".prepare.json")), true);
+  assert.equal(walFiles.some((file) => file.endsWith(".commit.json")), true);
+
+  const mutationPreview = await client.previewMutation({ objectId: rootReference.rootObjectId, path: "name", value: "Developer docs" });
+  assert.equal(mutationPreview.before, "Developer docs");
+  const mutationRecord = await client.mutate({ objectId: rootReference.rootObjectId, path: "name", value: "Developer docs" });
+  assert.equal(typeof mutationRecord.transactionId, "number");
+  const mutatedRootName = await client.gvql("MATCH (workspace:Workspace) RETURN workspace.name AS name");
+  assert.deepEqual(mutatedRootName.rows, [{ name: "Developer docs" }]);
 
   const mergeExistingPreview = await client.gvql(
     `
@@ -351,6 +363,7 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(response.status, 200);
     const apiSummary = await response.json();
     assert.equal(apiSummary.verification.ok, true);
+    assert.equal(apiSummary.hardening.writerLock, "enabled");
     const uiResponse = await fetch(server.url);
     assert.equal(uiResponse.status, 200);
     const html = await uiResponse.text();
