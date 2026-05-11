@@ -50,11 +50,11 @@ git push origin v0.1.0
 
 ## Publishing
 
-Use the GitHub Actions `Release` workflow with the matching tag input, for example `v0.1.0`.
+Use the GitHub Actions `Release` workflow with the matching tag input, for example `v0.1.0`, and set the confirmation input to `PUBLISH`.
 
 The workflow checks out the tag, installs with `npm ci`, runs tests, creates the demo store, validates the npm tarball with `npm run pack:dry-run`, performs the fresh-install package smoke test, and publishes with npm provenance.
 
-Only run the release workflow after the tag is intentionally created for a batched release. Do not use it as part of ordinary development or small follow-up fixes.
+Only run the release workflow after the tag is intentionally created for a batched release. Do not use it as part of ordinary development or small follow-up fixes. The workflow refuses to continue unless the confirmation input is exactly `PUBLISH`.
 
 ## Repository Visibility
 
