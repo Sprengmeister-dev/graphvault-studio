@@ -16,6 +16,7 @@ import {
 import { referencedChildren, summarizeNode, visitNode } from "./admin-inspection.js";
 import { encodeAdminValue, getNodePath, setNodePath } from "./admin-mutation.js";
 import { pathFromObjectToRoot } from "./admin-parent-index.js";
+import { loadAdminSubtree } from "./admin-subtree.js";
 import {
   envelopeFromAdminManifest,
   readAdminObjectRecord,
@@ -55,6 +56,7 @@ import type {
   AdminRootReference,
   AdminSearchResult,
   AdminSummary,
+  AdminSubtree,
   AdminStorageHardening,
   AdminTransactionMetadata,
   StorageAdminClientOptions,
@@ -104,6 +106,7 @@ export type {
   AdminRootReference,
   AdminSearchResult,
   AdminSummary,
+  AdminSubtree,
   StorageAdminClientOptions,
 } from "./admin-types.js";
 
@@ -220,6 +223,11 @@ export class StorageAdminClient {
       });
     }
     return { root: envelope.root, nodes, edges };
+  }
+
+  async subtree(options: { rootObjectId?: string; depth?: number } = {}): Promise<AdminSubtree> {
+    const manifest = await this.requireManifest();
+    return loadAdminSubtree(manifest, (objectId) => this.readObjectRecord(manifest, objectId), options);
   }
 
   async search(query: string, options: { limit?: number } = {}): Promise<AdminSearchResult[]> {

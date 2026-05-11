@@ -66,6 +66,19 @@ try {
   const rootReference = await client.rootReference();
   assert.equal(typeof rootReference.rootObjectId, "string");
 
+  const rootOnlySubtree = await client.subtree({ rootObjectId: rootReference.rootObjectId, depth: 0 });
+  assert.equal(rootOnlySubtree.depth, 0);
+  assert.equal(rootOnlySubtree.objectIds.length, 1);
+  assert.equal(rootOnlySubtree.complete, false);
+  assert.equal(rootOnlySubtree.truncatedReferences.some((reference) => reference.path === "documents"), true);
+  assert.equal(Object.keys(rootOnlySubtree.envelope.nodes).length, 1);
+
+  const rootSlice = await client.subtree({ depth: 1 });
+  assert.equal(rootSlice.rootObjectId, rootReference.rootObjectId);
+  assert.equal(rootSlice.objectIds.length > rootOnlySubtree.objectIds.length, true);
+  assert.equal(rootSlice.edges.some((edge) => edge.from === rootReference.rootObjectId), true);
+  await assert.rejects(() => client.subtree({ rootObjectId: "missing", depth: 1 }), /not present in the current manifest/);
+
   const results = await client.search("configuration");
   assert.equal(results.length > 0, true);
 
@@ -409,6 +422,19 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(apiSummary.verification.ok, true);
     assert.equal(apiSummary.hardening.writerLock, "enabled");
     assert.equal(apiSummary.operations.status, "healthy");
+    const rootResponse = await fetch(`${server.url}/api/root`);
+    assert.equal(rootResponse.status, 200);
+    const apiRoot = await rootResponse.json();
+    const subtreeResponse = await fetch(`${server.url}/api/subtree?depth=0`);
+    assert.equal(subtreeResponse.status, 200);
+    const apiSubtree = await subtreeResponse.json();
+    assert.equal(apiSubtree.objectIds.length, 1);
+    assert.equal(apiSubtree.complete, false);
+    const objectSubtreeResponse = await fetch(`${server.url}/api/objects/${encodeURIComponent(apiRoot.rootObjectId)}/subtree?depth=1`);
+    assert.equal(objectSubtreeResponse.status, 200);
+    const apiObjectSubtree = await objectSubtreeResponse.json();
+    assert.equal(apiObjectSubtree.rootObjectId, apiRoot.rootObjectId);
+    assert.equal(apiObjectSubtree.objectIds.length > 1, true);
     const operationsResponse = await fetch(`${server.url}/api/operations`);
     assert.equal(operationsResponse.status, 200);
     const operations = await operationsResponse.json();
@@ -417,6 +443,8 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(uiResponse.status, 200);
     const html = await uiResponse.text();
     assert.equal(html.includes("Storage operations"), true);
+    assert.equal(html.includes("graphRoot"), true);
+    assert.equal(html.includes("Load Graph Slice"), true);
     assert.equal(html.includes('id="gvqlExamples"'), true);
     assert.equal(html.includes("Scalar functions"), true);
     assert.equal(html.includes("CASE update"), true);

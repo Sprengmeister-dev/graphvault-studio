@@ -118,8 +118,12 @@ export interface AdminSearchResult {
 
 export interface AdminGraph {
   root: EncodedValue;
+  depth?: number;
+  complete?: boolean;
+  rootObjectId?: string;
   nodes: AdminGraphNode[];
   edges: AdminGraphEdge[];
+  truncatedReferences?: AdminSubtreeReference[];
 }
 
 export interface AdminGraphNode {
@@ -132,6 +136,32 @@ export interface AdminGraphEdge {
   from: string;
   to: string;
   path: string;
+}
+
+export interface AdminSubtreeReference {
+  fromObjectId: string;
+  toObjectId: string;
+  path: string;
+  depth: number;
+}
+
+export interface AdminSubtree {
+  root: EncodedValue;
+  rootObjectId?: string;
+  transactionId: number;
+  depth: number;
+  complete: boolean;
+  objectIds: string[];
+  nodes: AdminGraphNode[];
+  edges: AdminGraphEdge[];
+  truncatedReferences: AdminSubtreeReference[];
+  envelope: {
+    format: "graphvault";
+    version: 1;
+    createdAt: string;
+    root: EncodedValue;
+    nodes: Record<string, EncodedNode>;
+  };
 }
 
 export interface AdminMutation {

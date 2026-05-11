@@ -41,7 +41,7 @@ It is deliberately generic. It does not assume customers, orders, tickets, CMS p
 - parent path lookup from object to root
 - support for objects with multiple direct parents
 - paged object browser for large stores
-- graph edge view
+- depth-limited graph/subtree view for large stores and REST-style graph slices
 - GVQL query console for graph queries and batch-update previews
 - editable primitive fields with preview and confirmation-token safety
 - reads and writes versioned GraphVault object records used by crash-safe 0.2+ stores
@@ -146,6 +146,7 @@ The storage engine lives in [graphvault-library](https://github.com/Sprengmeiste
 
 - Studio is a pure TypeScript package with no frontend build toolchain.
 - The UI is served from the embedded admin server, so `npx graphvault-studio --dir ./data` is enough to inspect a store.
+- The HTTP API exposes bounded graph slices through `/api/subtree?depth=2` and `/api/objects/:id/subtree?depth=2`, which is useful when you want to preview what an external REST endpoint would return.
 - The package depends on GraphVault Library for storage layout, verification, parent index reading, and storage targets.
 - Run `npm test` to type-check, emit `dist/`, create a real store, exercise the admin client, and verify the embedded HTTP API.
 - CI runs on Node.js 20 and 22.

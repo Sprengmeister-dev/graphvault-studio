@@ -85,9 +85,17 @@ async function route(client: StorageAdminClient, options: AdminServerOptions, re
   if (request.method === "GET" && url.pathname === "/api/objects") {
     return sendJson(response, 200, await client.listObjects());
   }
+  if (request.method === "GET" && url.pathname === "/api/subtree") {
+    const rootObjectId = stringParam(url, "rootObjectId");
+    return sendJson(response, 200, await client.subtree({ ...(rootObjectId ? { rootObjectId } : {}), depth: numberParam(url, "depth", 2) }));
+  }
   if (request.method === "GET" && url.pathname?.startsWith("/api/objects/") && url.pathname.endsWith("/children")) {
     const objectId = decodeURIComponent(url.pathname.slice("/api/objects/".length, -"/children".length));
     return sendJson(response, 200, await client.listObjectChildren(objectId));
+  }
+  if (request.method === "GET" && url.pathname?.startsWith("/api/objects/") && url.pathname.endsWith("/subtree")) {
+    const objectId = decodeURIComponent(url.pathname.slice("/api/objects/".length, -"/subtree".length));
+    return sendJson(response, 200, await client.subtree({ rootObjectId: objectId, depth: numberParam(url, "depth", 2) }));
   }
   if (request.method === "GET" && url.pathname?.startsWith("/api/objects/") && url.pathname.endsWith("/path")) {
     const objectId = decodeURIComponent(url.pathname.slice("/api/objects/".length, -"/path".length));
@@ -159,6 +167,11 @@ async function route(client: StorageAdminClient, options: AdminServerOptions, re
 function numberParam(url: URL, name: string, fallback: number): number {
   const value = Number(url.searchParams.get(name));
   return Number.isFinite(value) ? value : fallback;
+}
+
+function stringParam(url: URL, name: string): string | undefined {
+  const value = url.searchParams.get(name)?.trim();
+  return value || undefined;
 }
 
 function isAuthRequired(options: AdminServerOptions): boolean {

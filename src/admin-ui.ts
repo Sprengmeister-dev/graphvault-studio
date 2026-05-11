@@ -46,6 +46,8 @@ export const ADMIN_HTML = `<!doctype html>
     .sidebar-card { display: grid; align-content: start; gap: 8px; padding: 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.06); }
     nav .hint { align-self: end; }
     .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+    .row-split { grid-template-columns: minmax(0, 1fr) 82px; }
+    .mini-labels { color: #9fb1b9; font-size: 12px; padding: 2px 2px 0; }
     .topbar { min-height: 74px; padding: 16px 24px; display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: center; background: linear-gradient(180deg, #ffffff 0%, #fbfdfd 100%); border-bottom: 1px solid var(--line); }
     .topbar h1 { margin: 0; font-family: "Avenir Next", "SF Pro Display", "Aptos Display", "Inter", ui-sans-serif, system-ui, sans-serif; font-size: 24px; letter-spacing: 0; font-weight: 600; }
     .auth { display: none; grid-template-columns: minmax(160px, 280px) auto; gap: 8px; }
@@ -151,6 +153,9 @@ export const ADMIN_HTML = `<!doctype html>
       </div>
       <div class="sidebar-card">
         <div class="row"><input id="q" placeholder="Search paths, values, types, IDs" /><button onclick="showSearch()">Search</button></div>
+        <div class="row row-split mini-labels"><span>Graph root ID</span><span>Depth</span></div>
+        <div class="row row-split"><input id="graphRoot" placeholder="Graph root object ID" /><input id="graphDepth" type="number" min="0" max="12" value="2" /></div>
+        <button onclick="showGraph()">Load Graph Slice</button>
         <div class="row"><input id="backupPath" placeholder="Backup destination" /><button onclick="runBackup()">Backup</button></div>
         <button onclick="runMaintenance()">Run Maintenance</button>
       </div>
@@ -233,7 +238,7 @@ OFFSET 0</textarea>
       hierarchy: ['Object Hierarchy', 'Root-first graph view with references you can follow.'],
       overview: ['Storage Overview', 'Health, object count, latest transaction, and current snapshot.'],
       objects: ['Objects', 'Browse graph records with type, preview, and transaction metadata.'],
-      graph: ['Object Graph', 'Click nodes or edges to inspect referenced records.'],
+      graph: ['Object Graph', 'Depth-limited graph slice for large stores and API-style inspection.'],
       gvql: ['GVQL Query', 'Run graph pattern queries and preview batch updates.'],
       operations: ['Operations', 'Storage hardening, WAL state, and recovery readiness.'],
       types: ['Type Dictionary', 'Registered runtime types and schema metadata.'],
@@ -340,6 +345,7 @@ OFFSET 0</textarea>
       show({ root: root.rootObjectId, note: 'Only the visible branch is loaded. Click a row to drill into its children.' });
     }
     async function showObjectWithChildren(id, label, parentPath) {
+      document.getElementById('graphRoot').value = id;
       const record = await apiJson('/api/objects/' + encodeURIComponent(id));
       hierarchyPath = parentPath.concat([{ id, label, record }]);
       renderEditableFields(record);
@@ -359,6 +365,7 @@ OFFSET 0</textarea>
       setRows(rows, 'No children');
     }
     async function showObjectInHierarchyPath(id) {
+      document.getElementById('graphRoot').value = id;
       setView('hierarchy');
       listTitle.textContent = 'Object hierarchy';
       listHint.textContent = 'Search context';
@@ -448,6 +455,7 @@ OFFSET 0</textarea>
       list.appendChild(pager);
     }
     async function showObject(id) {
+      document.getElementById('graphRoot').value = id;
       document.getElementById('mid').value = id;
       document.getElementById('detailHint').textContent = 'Object #' + id;
       const record = await requestJson('/api/objects/' + encodeURIComponent(id));
@@ -586,11 +594,39 @@ OFFSET 0</textarea>
     }
     async function showGraph() {
       setView('graph');
-      listTitle.textContent = 'Graph edges';
-      listHint.textContent = 'Follow references';
-      const graph = await requestJson('/api/graph');
+      listTitle.textContent = 'Graph slice';
+      const depth = graphDepth();
+      const rootObjectId = document.getElementById('graphRoot').value.trim();
+      listHint.textContent = (rootObjectId ? 'Root #' + rootObjectId : 'Store root') + ', depth ' + depth;
+      const graph = await requestJson(graphSubtreeUrl(rootObjectId, depth));
       renderGraph(graph);
-      setRows(graph.edges.map(e => ({ columns: [e.from + ' -> ' + e.to, 'edge', e.path, 'ref'], onclick: () => showObject(e.to) })), 'No edges found');
+      const rows = [
+        {
+          columns: [graph.complete ? 'complete' : 'partial', 'subtree', graph.objectIds.length + ' objects', graph.truncatedReferences.length + ' boundary refs'],
+          onclick: () => show(graph)
+        },
+        ...graph.nodes.map(node => ({
+          columns: ['#' + node.objectId, node.type || node.kind, node.objectId === graph.rootObjectId ? 'subtree root' : 'loaded node', 'node'],
+          onclick: () => showObject(node.objectId)
+        })),
+        ...graph.edges.map(e => ({
+          columns: [e.from + ' -> ' + e.to, 'edge', e.path, 'loaded'],
+          onclick: () => showObject(e.to)
+        })),
+        ...(graph.truncatedReferences || []).map(ref => ({
+          columns: [ref.fromObjectId + ' -> ' + ref.toObjectId, 'boundary', ref.path, 'depth ' + ref.depth],
+          onclick: () => showObjectInHierarchyPath(ref.toObjectId)
+        }))
+      ];
+      setRows(rows, 'No graph objects found');
+    }
+    function graphDepth() {
+      const value = Number.parseInt(document.getElementById('graphDepth').value || '2', 10);
+      return Number.isInteger(value) && value >= 0 ? Math.min(value, 12) : 2;
+    }
+    function graphSubtreeUrl(rootObjectId, depth) {
+      const query = '?depth=' + encodeURIComponent(String(depth));
+      return rootObjectId ? '/api/objects/' + encodeURIComponent(rootObjectId) + '/subtree' + query : '/api/subtree' + query;
     }
     function renderGraph(graph) {
       const width = 900;
@@ -628,8 +664,8 @@ OFFSET 0</textarea>
         circle.setAttribute('cx', pos.x);
         circle.setAttribute('cy', pos.y);
         circle.setAttribute('r', '26');
-        circle.setAttribute('fill', node.objectId === 'root' ? '#f3c969' : '#d9f1ef');
-        circle.setAttribute('stroke', node.objectId === 'root' ? '#ab7622' : '#0f8b8d');
+        circle.setAttribute('fill', node.objectId === graph.rootObjectId ? '#f3c969' : '#d9f1ef');
+        circle.setAttribute('stroke', node.objectId === graph.rootObjectId ? '#ab7622' : '#0f8b8d');
         circle.setAttribute('stroke-width', '2');
         const label = document.createElementNS(ns, 'text');
         label.setAttribute('x', pos.x);

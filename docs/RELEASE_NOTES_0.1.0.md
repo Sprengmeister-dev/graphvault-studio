@@ -8,6 +8,7 @@ GraphVault Studio 0.1.0 is the first public graphical admin client for GraphVaul
 - Search across paths, values, ids, types, references, and encoded object data.
 - Parent-path lookup from an object back toward the root, including multiple direct parents.
 - Paged object browser for large stores.
+- Depth-limited subtree API and graph slice view for large stores.
 - GVQL console for graph queries and dry-run batch mutation previews.
 - Controlled primitive-field editing with confirmation-token safety.
 - Verification, maintenance, backup, transaction, journal, graph, type dictionary, and object detail views.
