@@ -232,7 +232,11 @@ OFFSET 0</textarea>
     const authTokenInput = document.getElementById('authToken');
     const objectPageSize = 100;
     let objectPageOffset = 0;
-    let hierarchyPath = [];
+    let hierarchyRootId = '';
+    let selectedHierarchyId = '';
+    const hierarchyExpanded = new Set();
+    const hierarchyRecords = new Map();
+    const hierarchyChildren = new Map();
     let gvqlEditorWired = false;
     const viewText = {
       hierarchy: ['Object Hierarchy', 'Root-first graph view with references you can follow.'],
@@ -337,7 +341,7 @@ OFFSET 0</textarea>
     async function showHierarchy() {
       setView('hierarchy');
       listTitle.textContent = 'Object hierarchy';
-      listHint.textContent = 'Lazy loaded';
+      listHint.textContent = 'Expandable lazy tree';
       await refreshKpis();
       const root = await apiJson('/api/root');
       if (!root.rootObjectId) {
@@ -345,28 +349,74 @@ OFFSET 0</textarea>
         show(root);
         return;
       }
-      await showObjectWithChildren(root.rootObjectId, 'root', []);
-      show({ root: root.rootObjectId, note: 'Only the visible branch is loaded. Click a row to drill into its children.' });
+      hierarchyRootId = root.rootObjectId;
+      selectedHierarchyId = selectedHierarchyId || hierarchyRootId;
+      hierarchyExpanded.add(hierarchyRootId);
+      await ensureHierarchyNode(hierarchyRootId);
+      await renderHierarchyTree();
+      await selectHierarchyObject(selectedHierarchyId, 'root');
     }
-    async function showObjectWithChildren(id, label, parentPath) {
+    async function ensureHierarchyNode(id) {
+      if (!hierarchyRecords.has(id)) {
+        hierarchyRecords.set(id, await apiJson('/api/objects/' + encodeURIComponent(id)));
+      }
+      if (!hierarchyChildren.has(id)) {
+        hierarchyChildren.set(id, await apiJson('/api/objects/' + encodeURIComponent(id) + '/children'));
+      }
+      return {
+        record: hierarchyRecords.get(id),
+        children: hierarchyChildren.get(id) || []
+      };
+    }
+    async function selectHierarchyObject(id, label) {
       document.getElementById('graphRoot').value = id;
-      const record = await apiJson('/api/objects/' + encodeURIComponent(id));
-      hierarchyPath = parentPath.concat([{ id, label, record }]);
+      selectedHierarchyId = id;
+      const data = await ensureHierarchyNode(id);
+      const record = data.record;
       renderEditableFields(record);
       document.getElementById('mid').value = id;
       document.getElementById('detailHint').textContent = 'Object #' + id;
       out.textContent = JSON.stringify(record, null, 2);
-      const children = await apiJson('/api/objects/' + encodeURIComponent(id) + '/children');
-      const rows = hierarchyPath.map((entry, index) => ({
-        depth: index,
-        columns: ['#' + entry.record.objectId, entry.record.node.type || entry.record.node.kind, entry.label + ' -> ' + summarizeRecord(entry.record), index === hierarchyPath.length - 1 ? 'current' : 'parent'],
-        onclick: () => showObjectWithChildren(entry.id, entry.label, hierarchyPath.slice(0, index))
-      })).concat(children.map(child => ({
-        depth: hierarchyPath.length,
-        columns: ['#' + child.to, child.type || child.kind, child.path + ' -> ' + child.preview, 'open'],
-        onclick: () => showObjectWithChildren(child.to, child.path, hierarchyPath)
-      })));
+    }
+    async function toggleHierarchyObject(id, label) {
+      const data = await ensureHierarchyNode(id);
+      if (data.children.length) {
+        if (hierarchyExpanded.has(id)) hierarchyExpanded.delete(id);
+        else hierarchyExpanded.add(id);
+      }
+      await selectHierarchyObject(id, label);
+      await renderHierarchyTree();
+    }
+    async function renderHierarchyTree() {
+      if (!hierarchyRootId) return;
+      const rows = [];
+      await appendHierarchyRows(rows, hierarchyRootId, 'root', 0, []);
       setRows(rows, 'No children');
+    }
+    async function appendHierarchyRows(rows, id, label, depth, path) {
+      const data = await ensureHierarchyNode(id);
+      const record = data.record;
+      const children = data.children;
+      const isExpanded = hierarchyExpanded.has(id);
+      const marker = children.length ? (isExpanded ? '[-] ' : '[+] ') : '    ';
+      rows.push({
+        depth,
+        columns: [marker + '#' + record.objectId, record.node.type || record.node.kind, label + ' -> ' + summarizeRecord(record), id === selectedHierarchyId ? 'selected' : children.length + ' children'],
+        onclick: () => toggleHierarchyObject(id, label)
+      });
+      if (!isExpanded) return;
+      const nextPath = path.concat(id);
+      for (const child of children) {
+        if (nextPath.includes(child.to)) {
+          rows.push({
+            depth: depth + 1,
+            columns: ['[ref] #' + child.to, child.type || child.kind, child.path + ' -> cycle/shared reference', 'linked'],
+            onclick: () => selectHierarchyObject(child.to, child.path)
+          });
+        } else {
+          await appendHierarchyRows(rows, child.to, child.path, depth + 1, nextPath);
+        }
+      }
     }
     async function showObjectInHierarchyPath(id) {
       document.getElementById('graphRoot').value = id;

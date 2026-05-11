@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5
+
+- Restore the Object Hierarchy view as an expandable lazy tree with persistent root context instead of a drilldown-only list.
+
 ## 0.1.4
 
 - Add production safety status and score to the summary API, Overview, KPI bar, and Operations view.
