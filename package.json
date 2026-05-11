@@ -1,6 +1,6 @@
 {
   "name": "graphvault-studio",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Graphical admin client for GraphVault object graph stores.",
   "repository": {
     "type": "git",

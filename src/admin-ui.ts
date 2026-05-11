@@ -26,7 +26,7 @@ export const ADMIN_HTML = `<!doctype html>
     }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; }
-    strong, b, .status, .panel-title, .mutation summary, .object-id, .tag, .field-name, .kpi strong { text-shadow: none; }
+    strong, b, .status, .panel-title, .mutation summary, .object-id, .tag, .field-name { text-shadow: none; }
     button, input, select, textarea { font: inherit; }
     button { border: 1px solid var(--line); background: #fff; border-radius: 7px; cursor: pointer; }
     button:hover { border-color: #98aab3; background: #f6fafb; }
@@ -52,11 +52,7 @@ export const ADMIN_HTML = `<!doctype html>
     .topbar h1 { margin: 0; font-family: "Avenir Next", "SF Pro Display", "Aptos Display", "Inter", ui-sans-serif, system-ui, sans-serif; font-size: 24px; letter-spacing: 0; font-weight: 600; }
     .auth { display: none; grid-template-columns: minmax(160px, 280px) auto; gap: 8px; }
     .workspace { padding: 18px; display: grid; gap: 14px; }
-    .kpis { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 12px; }
-    .kpi, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 28px rgba(15, 35, 45, 0.05); }
-    .kpi { padding: 14px; display: grid; gap: 8px; min-height: 94px; }
-    .kpi span { color: var(--muted); font-size: 13px; }
-    .kpi strong { font-size: 28px; line-height: 1; overflow-wrap: anywhere; font-weight: 600; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 28px rgba(15, 35, 45, 0.05); }
     .workgrid { display: grid; grid-template-columns: minmax(330px, 500px) minmax(560px, 1fr); gap: 14px; min-height: 0; }
     .panel { min-width: 0; overflow: hidden; }
     .panel-head { padding: 13px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); background: #fbfdfd; }
@@ -119,7 +115,7 @@ export const ADMIN_HTML = `<!doctype html>
       .field-actions { grid-area: actions; justify-content: flex-start; }
     }
     @media (max-width: 980px) {
-      .shell, .kpis, .mutation-grid, .audit-grid, .topbar, .fields-head { grid-template-columns: 1fr; }
+      .shell, .mutation-grid, .audit-grid, .topbar, .fields-head { grid-template-columns: 1fr; }
       .gvql-actions, .gvql-parameter-row { grid-template-columns: 1fr; }
       nav { grid-template-rows: auto; gap: 10px; padding: 12px; }
       .brand { grid-template-columns: 42px 1fr; padding-bottom: 2px; }
@@ -168,7 +164,6 @@ export const ADMIN_HTML = `<!doctype html>
         <span class="status" id="status">loading</span>
       </header>
       <main class="workspace">
-        <div class="kpis" id="kpis"></div>
         <div class="workgrid">
           <div class="panel">
             <div class="panel-head"><span class="panel-title" id="listTitle">Objects</span><span class="hint" id="listHint">Select a record</span></div>
@@ -221,7 +216,6 @@ OFFSET 0</textarea>
     const viz = document.getElementById('viz');
     const fields = document.getElementById('fields');
     const list = document.getElementById('list');
-    const kpis = document.getElementById('kpis');
     const status = document.getElementById('status');
     const title = document.getElementById('title');
     const subtitle = document.getElementById('subtitle');
@@ -301,7 +295,6 @@ OFFSET 0</textarea>
       return value;
     };
     const postJson = (url, body) => requestJson(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    const kpi = (label, value) => '<div class="kpi"><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong></div>';
     function setRows(rows, emptyText) {
       if (!rows.length) {
         const empty = document.createElement('div');
@@ -327,16 +320,7 @@ OFFSET 0</textarea>
       }));
     }
     async function refreshKpis() {
-      const summary = await requestJson('/api/summary?verify=false');
-      const hardening = summary.hardening || {};
-      const ops = summary.operations || {};
-      const library = summary.library || {};
-      const safety = summary.productionSafety || {};
-      const walLabel = (hardening.transactionLog || '-') + (typeof ops.pendingWalCommits === 'number' ? ' / ' + ops.pendingWalCommits + ' pending' : '');
-      const libraryLabel = (library.installedVersion || '-') + (library.status === 'warning' ? ' warning' : '');
-      const safetyLabel = (safety.status || '-') + (typeof safety.score === 'number' ? ' / ' + safety.score : '');
-      kpis.innerHTML = kpi('Objects', summary.objectCount) + kpi('Transaction', summary.transactionId) + kpi('Safety', safetyLabel) + kpi('Library', libraryLabel) + kpi('WAL', walLabel) + kpi('Lock', hardening.writerLock || '-') + kpi('Ops', ops.status || '-') + kpi('Snapshot', summary.currentSnapshot || '-');
-      return summary;
+      return apiJson('/api/summary?verify=false');
     }
     async function showHierarchy() {
       setView('hierarchy');

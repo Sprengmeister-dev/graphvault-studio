@@ -455,6 +455,7 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(html.includes("production safety"), true);
     assert.equal(html.includes("Expandable lazy tree"), true);
     assert.equal(html.includes("hierarchyExpanded"), true);
+    assert.equal(html.includes('id="kpis"'), false);
     assert.equal(html.includes("Library"), true);
     assert.equal(html.includes("graphRoot"), true);
     assert.equal(html.includes("Load Graph Slice"), true);

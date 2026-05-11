@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.6
+
+- Remove the global KPI strip from every Studio tab; summary signals now stay in Overview and Operations instead of occupying the main workspace everywhere.
+
 ## 0.1.5
 
 - Restore the Object Hierarchy view as an expandable lazy tree with persistent root context instead of a drilldown-only list.
