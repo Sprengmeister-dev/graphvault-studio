@@ -45,7 +45,7 @@ It is deliberately generic. It does not assume customers, orders, tickets, CMS p
 - GVQL query console for graph queries and batch-update previews
 - editable primitive fields with preview and confirmation-token safety
 - admin mutations use writer locks, WAL prepare/commit records, and fencing-token validation when the installed GraphVault Library supports it
-- operational hardening KPIs for WAL mode, writer lock status, verification, and latest transaction
+- operational hardening KPIs and an Operations view for WAL mode, pending WAL recovery, writer lock status, mutation mode, and latest transaction
 - verification, maintenance, backup, transaction and journal views
 - optional bearer-token protection
 - zero frontend build step; the UI is embedded in the TypeScript package

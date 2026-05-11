@@ -36,8 +36,22 @@ export interface AdminSummary {
   latestTransaction?: TransactionRecord;
   typeDictionary?: TypeDictionary;
   hardening: AdminStorageHardening;
+  operations: AdminOperationalStatus;
   verification?: VerificationResult;
   verificationSkipped?: boolean;
+}
+
+export interface AdminOperationalStatus {
+  transactionLog: "full" | "off";
+  mutationsAllowed: boolean;
+  lockTimeoutMs: number;
+  staleLockTimeoutMs?: number;
+  walPrepareFiles: number;
+  walCommitFiles: number;
+  latestWalTransactionId: number;
+  publishedTransactionId: number;
+  pendingWalCommits: number;
+  status: "healthy" | "recovery-pending";
 }
 
 export interface AdminObjectListItem {

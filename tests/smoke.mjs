@@ -57,6 +57,9 @@ try {
   assert.equal(summary.verification.ok, true);
   assert.equal(summary.hardening.transactionLog, "full");
   assert.equal(summary.hardening.writerLock, "enabled");
+  assert.equal(summary.operations.transactionLog, "full");
+  assert.equal(summary.operations.status, "healthy");
+  assert.equal(summary.operations.pendingWalCommits, 0);
 
   const rootReference = await client.rootReference();
   assert.equal(typeof rootReference.rootObjectId, "string");
@@ -364,9 +367,15 @@ async function assertAdminServer(storageDirectory) {
     const apiSummary = await response.json();
     assert.equal(apiSummary.verification.ok, true);
     assert.equal(apiSummary.hardening.writerLock, "enabled");
+    assert.equal(apiSummary.operations.status, "healthy");
+    const operationsResponse = await fetch(`${server.url}/api/operations`);
+    assert.equal(operationsResponse.status, 200);
+    const operations = await operationsResponse.json();
+    assert.equal(operations.pendingWalCommits, 0);
     const uiResponse = await fetch(server.url);
     assert.equal(uiResponse.status, 200);
     const html = await uiResponse.text();
+    assert.equal(html.includes("Storage operations"), true);
     assert.equal(html.includes('id="gvqlExamples"'), true);
     assert.equal(html.includes("Scalar functions"), true);
     assert.equal(html.includes("CASE update"), true);

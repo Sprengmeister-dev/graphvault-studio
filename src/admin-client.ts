@@ -37,6 +37,7 @@ import type {
   AdminObjectListItem,
   AdminObjectPage,
   AdminObjectParent,
+  AdminOperationalStatus,
   AdminRootReference,
   AdminSearchResult,
   AdminSummary,
@@ -84,6 +85,7 @@ export type {
   AdminObjectListItem,
   AdminObjectPage,
   AdminObjectParent,
+  AdminOperationalStatus,
   AdminRootReference,
   AdminSearchResult,
   AdminSummary,
@@ -122,6 +124,7 @@ export class StorageAdminClient {
       ...(latestTransaction ? { latestTransaction } : {}),
       ...(typeDictionary ? { typeDictionary } : {}),
       hardening: this.hardening(),
+      operations: await this.operations(manifest, latestTransaction),
       ...(verification ? { verification } : { verificationSkipped: true }),
     };
   }
@@ -428,6 +431,41 @@ export class StorageAdminClient {
       writerLock: "enabled",
       fencingTokens: "used-when-supported",
       staleLockRecovery: typeof this.options.staleLockTimeoutMs === "number",
+    };
+  }
+
+  private async operations(manifest: StorageManifest, latestTransaction?: TransactionRecord): Promise<AdminOperationalStatus> {
+    const walFiles = await this.reader.readDirectoryIfExists(this.walDirectory);
+    const prepareFiles = walFiles.filter((file) => file.endsWith(".prepare.json"));
+    const commitFiles = walFiles.filter((file) => file.endsWith(".commit.json"));
+    const publishedTransactionId = Math.max(manifest.transactionId, latestTransaction?.transactionId ?? 0);
+    let latestWalTransactionId = 0;
+    let pendingWalCommits = 0;
+    for (const file of commitFiles) {
+      try {
+        const record = JSON.parse(await this.target.readText(join(this.walDirectory, file))) as StudioWalCommitRecord;
+        if (record.format !== "graphvault-wal" || record.status !== "committed") {
+          continue;
+        }
+        latestWalTransactionId = Math.max(latestWalTransactionId, record.transactionId);
+        if (record.transactionId > publishedTransactionId) {
+          pendingWalCommits++;
+        }
+      } catch {
+        // Verification surfaces malformed WAL; the operations pane stays lightweight.
+      }
+    }
+    return {
+      transactionLog: this.options.transactionLog ?? "full",
+      mutationsAllowed: this.allowMutations,
+      lockTimeoutMs: this.options.lockTimeoutMs ?? 5_000,
+      ...(typeof this.options.staleLockTimeoutMs === "number" ? { staleLockTimeoutMs: this.options.staleLockTimeoutMs } : {}),
+      walPrepareFiles: prepareFiles.length,
+      walCommitFiles: commitFiles.length,
+      latestWalTransactionId,
+      publishedTransactionId,
+      pendingWalCommits,
+      status: pendingWalCommits > 0 ? "recovery-pending" : "healthy",
     };
   }
 

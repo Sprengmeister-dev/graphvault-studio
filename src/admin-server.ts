@@ -63,6 +63,9 @@ async function route(client: StorageAdminClient, options: AdminServerOptions, re
   if (request.method === "GET" && url.pathname === "/api/summary") {
     return sendJson(response, 200, await client.summary({ verify: url.searchParams.get("verify") !== "false" }));
   }
+  if (request.method === "GET" && url.pathname === "/api/operations") {
+    return sendJson(response, 200, (await client.summary({ verify: false })).operations);
+  }
   if (request.method === "GET" && url.pathname === "/api/root") {
     return sendJson(response, 200, await client.rootReference());
   }

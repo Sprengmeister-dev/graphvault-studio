@@ -142,6 +142,7 @@ export const ADMIN_HTML = `<!doctype html>
         <button class="nav-btn" data-view="objects" onclick="showObjects()">Objects</button>
         <button class="nav-btn" data-view="graph" onclick="showGraph()">Graph</button>
         <button class="nav-btn" data-view="gvql" onclick="showGvql()">GVQL</button>
+        <button class="nav-btn" data-view="operations" onclick="showOperations()">Operations</button>
         <button class="nav-btn" data-view="types" onclick="showTypes()">Type Dictionary</button>
         <button class="nav-btn" data-view="transactions" onclick="showTransactions()">Transactions</button>
         <button class="nav-btn" data-view="journal" onclick="showJournal()">Journal</button>
@@ -226,6 +227,7 @@ OFFSET 0</textarea>
       objects: ['Objects', 'Browse graph records with type, preview, and transaction metadata.'],
       graph: ['Object Graph', 'Click nodes or edges to inspect referenced records.'],
       gvql: ['GVQL Query', 'Run graph pattern queries and preview batch updates.'],
+      operations: ['Operations', 'Storage hardening, WAL state, and recovery readiness.'],
       types: ['Type Dictionary', 'Registered runtime types and schema metadata.'],
       transactions: ['Transactions', 'Newest commits first.'],
       journal: ['Journal', 'Append-only storage activity log.'],
@@ -310,7 +312,9 @@ OFFSET 0</textarea>
     async function refreshKpis() {
       const summary = await requestJson('/api/summary?verify=false');
       const hardening = summary.hardening || {};
-      kpis.innerHTML = kpi('Objects', summary.objectCount) + kpi('Transaction', summary.transactionId) + kpi('WAL', hardening.transactionLog || '-') + kpi('Lock', hardening.writerLock || '-') + kpi('Verify', summary.verification ? (summary.verification.ok ? 'OK' : 'FAIL') : 'manual') + kpi('Snapshot', summary.currentSnapshot || '-');
+      const ops = summary.operations || {};
+      const walLabel = (hardening.transactionLog || '-') + (typeof ops.pendingWalCommits === 'number' ? ' / ' + ops.pendingWalCommits + ' pending' : '');
+      kpis.innerHTML = kpi('Objects', summary.objectCount) + kpi('Transaction', summary.transactionId) + kpi('WAL', walLabel) + kpi('Lock', hardening.writerLock || '-') + kpi('Ops', ops.status || '-') + kpi('Snapshot', summary.currentSnapshot || '-');
       return summary;
     }
     async function showHierarchy() {
@@ -398,7 +402,14 @@ OFFSET 0</textarea>
       listHint.textContent = 'Overview';
       const summary = await refreshKpis();
       show(summary);
-      setRows(summary.latestTransaction ? [{ columns: ['#' + summary.latestTransaction.transactionId, summary.latestTransaction.mode, summary.latestTransaction.snapshotFile, summary.latestTransaction.objectIds.length + ' ids'], onclick: () => show(summary.latestTransaction) }] : [], 'No transactions yet');
+      const rows = [];
+      if (summary.operations) {
+        rows.push({ columns: [summary.operations.status, 'operations', summary.operations.pendingWalCommits + ' pending WAL commits', summary.operations.walCommitFiles + ' WAL commits'], onclick: () => show(summary.operations) });
+      }
+      if (summary.latestTransaction) {
+        rows.push({ columns: ['#' + summary.latestTransaction.transactionId, summary.latestTransaction.mode, summary.latestTransaction.snapshotFile, summary.latestTransaction.objectIds.length + ' ids'], onclick: () => show(summary.latestTransaction) });
+      }
+      setRows(rows, 'No transactions yet');
     }
     async function showObjects() {
       setView('objects');
@@ -626,6 +637,18 @@ OFFSET 0</textarea>
     }
     const showTypes = async () => { setView('types'); listTitle.textContent = 'Types'; listHint.textContent = 'Dictionary'; const value = await requestJson('/api/types'); setRows((value && value.entries || []).map(e => ({ columns: [String(e.id || '-'), e.name || 'type', e.handler || e.name || '-', 'type'], onclick: () => show(e) })), 'No type dictionary found'); };
     const showTransactions = async () => { setView('transactions'); listTitle.textContent = 'Transactions'; listHint.textContent = 'Newest first'; const rows = await requestJson('/api/transactions'); setRows(rows.map(t => ({ columns: ['#' + t.transactionId, t.mode, t.snapshotFile, t.objectIds.length + ' ids'], onclick: () => show(t) })), 'No transactions found'); };
+    const showOperations = async () => {
+      setView('operations');
+      listTitle.textContent = 'Storage operations';
+      listHint.textContent = 'WAL and hardening';
+      const ops = await requestJson('/api/operations');
+      setRows([
+        { columns: [ops.status, 'health', ops.pendingWalCommits + ' pending WAL commits', ops.latestWalTransactionId ? 'wal tx ' + ops.latestWalTransactionId : 'no wal'], onclick: () => show(ops) },
+        { columns: [ops.transactionLog, 'wal', ops.walPrepareFiles + ' prepares', ops.walCommitFiles + ' commits'], onclick: () => show(ops) },
+        { columns: [ops.mutationsAllowed ? 'enabled' : 'disabled', 'mutations', 'lock timeout ' + ops.lockTimeoutMs + 'ms', ops.staleLockTimeoutMs ? 'stale ' + ops.staleLockTimeoutMs + 'ms' : 'no stale recovery'], onclick: () => show(ops) }
+      ], 'No operations status');
+      return ops;
+    };
     const showJournal = async () => {
       setView('journal');
       listTitle.textContent = 'Journal';
