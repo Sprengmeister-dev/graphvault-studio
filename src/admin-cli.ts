@@ -2,6 +2,8 @@
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { startAdminServer } from "./admin-server.js";
+import { StorageAdminClient } from "./admin-client.js";
+import type { AdminSummary, StorageAdminClientOptions } from "./admin-types.js";
 
 export interface ParsedAdminCliArgs {
   storageDirectory?: string;
@@ -13,6 +15,8 @@ export interface ParsedAdminCliArgs {
   operatorToken?: string;
   adminToken?: string;
   mutationConfirmToken?: string;
+  doctor: boolean;
+  json: boolean;
   help: boolean;
 }
 
@@ -24,6 +28,8 @@ export function parseAdminCliArgs(argv: readonly string[], env: NodeJS.ProcessEn
     host: DEFAULT_HOST,
     port: DEFAULT_PORT,
     allowMutations: false,
+    doctor: false,
+    json: false,
     help: false,
   };
   if (env["GRAPHVAULT_ADMIN_TOKEN"]) {
@@ -50,6 +56,14 @@ export function parseAdminCliArgs(argv: readonly string[], env: NodeJS.ProcessEn
     }
     if (arg === "--allow-mutations") {
       parsed.allowMutations = true;
+      continue;
+    }
+    if (arg === "--doctor") {
+      parsed.doctor = true;
+      continue;
+    }
+    if (arg === "--json") {
+      parsed.json = true;
       continue;
     }
     if (arg === "--dir" || arg === "--storage-directory") {
@@ -104,6 +118,8 @@ export function adminCliHelp(): string {
     "  --admin-token <token>                 Full mutation bearer token.",
     "  --confirm-token <token>               Token required to commit mutations.",
     "  --allow-mutations                     Enable maintenance and data mutation APIs.",
+    "  --doctor                              Inspect the store and exit without starting the web server.",
+    "  --json                                Print doctor output as JSON.",
     "  -h, --help                            Show this help.",
     "",
     "Environment:",
@@ -131,6 +147,13 @@ async function main(argv: readonly string[]): Promise<void> {
     port: options.port,
     allowMutations: options.allowMutations,
   };
+  if (options.doctor) {
+    const result = await runDoctor(serverOptions, options.json);
+    if (!result.ok) {
+      process.exitCode = 2;
+    }
+    return;
+  }
   const running = await startAdminServer({
     ...serverOptions,
     ...(options.authToken ? { authToken: options.authToken } : {}),
@@ -158,6 +181,60 @@ async function main(argv: readonly string[]): Promise<void> {
   };
   process.once("SIGINT", close);
   process.once("SIGTERM", close);
+}
+
+export interface AdminDoctorResult {
+  ok: boolean;
+  status: "ok" | "warning" | "unsafe" | "error";
+  summary: AdminSummary;
+}
+
+export async function runDoctor(
+  options: StorageAdminClientOptions,
+  json = false,
+  write: (output: string) => void = console.log,
+): Promise<AdminDoctorResult> {
+  const client = new StorageAdminClient(options);
+  const summary = await client.summary();
+  const verificationOk = summary.verification?.ok === true;
+  const safetyStatus = summary.productionSafety.status;
+  const ok = verificationOk && safetyStatus !== "unsafe";
+  const status: AdminDoctorResult["status"] = ok
+    ? safetyStatus === "warning"
+      ? "warning"
+      : "ok"
+    : safetyStatus === "unsafe"
+      ? "unsafe"
+      : "error";
+  const result = { ok, status, summary };
+  if (json) {
+    write(JSON.stringify(result, null, 2));
+  } else {
+    write(formatDoctorResult(result));
+  }
+  return result;
+}
+
+export function formatDoctorResult(result: AdminDoctorResult): string {
+  const { summary } = result;
+  const lines = [
+    `GraphVault Studio Doctor: ${result.status}`,
+    `Storage directory: ${summary.storageDirectory}`,
+    `Objects: ${summary.objectCount}`,
+    `Transaction: ${summary.transactionId}`,
+    `Verification: ${summary.verification?.ok ? "ok" : "failed"}`,
+    `Operations: ${summary.operations.status}`,
+    `Production safety: ${summary.productionSafety.status} (${summary.productionSafety.score})`,
+  ];
+  for (const issue of summary.productionSafety.issues) {
+    lines.push(`- ${issue.severity}: ${issue.code} - ${issue.message}`);
+  }
+  if (summary.verification?.errors.length) {
+    for (const error of summary.verification.errors) {
+      lines.push(`- error: ${error}`);
+    }
+  }
+  return lines.join("\n");
 }
 
 function accessTokensFromOptions(options: ParsedAdminCliArgs): Array<{ token: string; role: "viewer" | "operator" | "admin" }> {

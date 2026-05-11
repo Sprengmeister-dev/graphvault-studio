@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { copyFile, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { EmbeddedStorage } from "@sprengmeister/graphvault";
 import { StorageAdminClient, startAdminServer } from "../dist/admin.js";
-import { parseAdminCliArgs } from "../dist/admin-cli.js";
+import { parseAdminCliArgs, runDoctor } from "../dist/admin-cli.js";
 
 class Workspace {
   constructor(name) {
@@ -397,10 +398,20 @@ try {
 
   await assertAdminServer(storageDirectory);
   await assertAdminServerRbac(storageDirectory);
+  const doctor = await runDoctor({ storageDirectory }, true, () => undefined);
+  assert.equal(doctor.ok, true);
+  assert.equal(doctor.status, "warning");
+  assert.equal(doctor.summary.verification.ok, true);
+  const doctorJson = execFileSync("node", ["dist/admin-cli.js", "--dir", storageDirectory, "--doctor", "--json"], { encoding: "utf8" });
+  const parsedDoctor = JSON.parse(doctorJson);
+  assert.equal(parsedDoctor.ok, true);
+  assert.equal(parsedDoctor.summary.objectCount > 0, true);
   assert.deepEqual(
-    parseAdminCliArgs(["--dir", "data", "--viewer-token", "v", "--operator-token", "o", "--admin-token", "a"]).viewerToken,
+    parseAdminCliArgs(["--dir", "data", "--viewer-token", "v", "--operator-token", "o", "--admin-token", "a", "--doctor", "--json"]).viewerToken,
     "v",
   );
+  assert.equal(parseAdminCliArgs(["--dir", "data", "--doctor", "--json"]).doctor, true);
+  assert.equal(parseAdminCliArgs(["--dir", "data", "--doctor", "--json"]).json, true);
 } finally {
   await rm(storageDirectory, { recursive: true, force: true });
 }

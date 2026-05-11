@@ -84,6 +84,20 @@ The CLI reads a local GraphVault storage directory. This is the common setup for
 npx graphvault-studio --dir ./data --port 4177
 ```
 
+Run a non-interactive health check without opening the web UI:
+
+```bash
+npx graphvault-studio --dir ./data --doctor
+```
+
+For CI, deployment checks, or monitoring jobs, use JSON output:
+
+```bash
+npx graphvault-studio --dir ./data --doctor --json
+```
+
+The doctor command verifies the store, evaluates the production safety profile, and exits with code `2` if verification fails or the store is classified as unsafe.
+
 Mutation APIs are opt-in:
 
 ```bash

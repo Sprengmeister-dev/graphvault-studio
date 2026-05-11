@@ -35,11 +35,13 @@ try {
   assertIncludes(help, "--dir");
   assertIncludes(help, "--port");
   assertIncludes(help, "--allow-mutations");
+  assertIncludes(help, "--doctor");
 
   await writeFile(
     join(temp, "smoke.mjs"),
     `
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -80,6 +82,11 @@ try {
 
   const results = await client.search("Install verification");
   assert.equal(results.length > 0, true);
+
+  const doctorJson = execFileSync(join(".", "node_modules", ".bin", process.platform === "win32" ? "graphvault-studio.cmd" : "graphvault-studio"), ["--dir", storageDirectory, "--doctor", "--json"], { encoding: "utf8" });
+  const doctor = JSON.parse(doctorJson);
+  assert.equal(doctor.ok, true);
+  assert.equal(doctor.summary.objectCount >= 2, true);
 } finally {
   await rm(storageDirectory, { recursive: true, force: true });
 }
