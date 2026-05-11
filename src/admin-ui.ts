@@ -645,7 +645,8 @@ OFFSET 0</textarea>
       setRows([
         { columns: [ops.status, 'health', ops.pendingWalCommits + ' pending WAL commits', ops.latestWalTransactionId ? 'wal tx ' + ops.latestWalTransactionId : 'no wal'], onclick: () => show(ops) },
         { columns: [ops.transactionLog, 'wal', ops.walPrepareFiles + ' prepares', ops.walCommitFiles + ' commits'], onclick: () => show(ops) },
-        { columns: [ops.mutationsAllowed ? 'enabled' : 'disabled', 'mutations', 'lock timeout ' + ops.lockTimeoutMs + 'ms', ops.staleLockTimeoutMs ? 'stale ' + ops.staleLockTimeoutMs + 'ms' : 'no stale recovery'], onclick: () => show(ops) }
+        { columns: [ops.mutationsAllowed ? 'enabled' : 'disabled', 'mutations', 'lock timeout ' + ops.lockTimeoutMs + 'ms', ops.staleLockTimeoutMs ? 'stale ' + ops.staleLockTimeoutMs + 'ms' : 'no stale recovery'], onclick: () => show(ops) },
+        { columns: ['#' + ops.publishedTransactionId, 'published', ops.latestJournalTransactionId ? 'journal tx ' + ops.latestJournalTransactionId : 'no journal', 'manifest'], onclick: () => show(ops) }
       ], 'No operations status');
       return ops;
     };

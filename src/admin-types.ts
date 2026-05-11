@@ -49,6 +49,7 @@ export interface AdminOperationalStatus {
   walPrepareFiles: number;
   walCommitFiles: number;
   latestWalTransactionId: number;
+  latestJournalTransactionId: number;
   publishedTransactionId: number;
   pendingWalCommits: number;
   status: "healthy" | "recovery-pending";

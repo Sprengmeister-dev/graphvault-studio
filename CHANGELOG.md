@@ -5,6 +5,7 @@
 - Publish the Studio CLI under the unscoped `graphvault-studio` npm package name for a reliable `npx graphvault-studio` install path.
 - Add WAL-backed admin mutation commits with writer-lock protection and optional fencing-token validation.
 - Add operational hardening information to the summary API, Studio KPI bar, `/api/operations`, and a dedicated Operations view.
+- Publish `manifest.json` last for Studio mutation commits so late metadata failures remain recoverable instead of partially visible.
 
 ## 0.1.1
 

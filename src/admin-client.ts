@@ -386,11 +386,6 @@ export class StorageAdminClient {
         } satisfies StudioWalCommitRecord);
       }
       await this.assertLockValid(lock);
-      await this.writer.writeParentIndex(envelope, transactionId);
-      await this.writer.writeManifest(envelope, transactionId);
-      await this.assertLockValid(lock);
-      await this.target.writeTextAtomic(this.layout.currentFile, snapshotFile);
-      await this.assertLockValid(lock);
       const record: TransactionRecord = {
         format: "graphvault-transaction",
         version: 1,
@@ -402,6 +397,11 @@ export class StorageAdminClient {
         targetCount,
       };
       await this.writer.writeTransactionRecord(record);
+      await this.assertLockValid(lock);
+      await this.writer.writeParentIndex(envelope, transactionId);
+      await this.assertLockValid(lock);
+      await this.target.writeTextAtomic(this.layout.currentFile, snapshotFile);
+      await this.writer.writeManifest(envelope, transactionId);
       return record;
     } finally {
       await lock.release();
@@ -438,7 +438,7 @@ export class StorageAdminClient {
     const walFiles = await this.reader.readDirectoryIfExists(this.walDirectory);
     const prepareFiles = walFiles.filter((file) => file.endsWith(".prepare.json"));
     const commitFiles = walFiles.filter((file) => file.endsWith(".commit.json"));
-    const publishedTransactionId = Math.max(manifest.transactionId, latestTransaction?.transactionId ?? 0);
+    const publishedTransactionId = manifest.transactionId;
     let latestWalTransactionId = 0;
     let pendingWalCommits = 0;
     for (const file of commitFiles) {
@@ -463,6 +463,7 @@ export class StorageAdminClient {
       walPrepareFiles: prepareFiles.length,
       walCommitFiles: commitFiles.length,
       latestWalTransactionId,
+      latestJournalTransactionId: latestTransaction?.transactionId ?? 0,
       publishedTransactionId,
       pendingWalCommits,
       status: pendingWalCommits > 0 ? "recovery-pending" : "healthy",

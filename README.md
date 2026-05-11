@@ -104,7 +104,7 @@ GRAPHVAULT_ADMIN_TOKEN=secret npx graphvault-studio \
   --confirm-token "$(openssl rand -hex 16)"
 ```
 
-Studio mutation commits are written through the same storage-level safety shape expected from GraphVault deployments: writer lock, WAL prepare, data write, WAL commit marker, manifest publish, and transaction journal. With GraphVault Library 0.2 or newer, fencing tokens prevent stale recovered writers from publishing or releasing newer locks.
+Studio mutation commits are written through the same storage-level safety shape expected from GraphVault deployments: writer lock, WAL prepare, data write, WAL commit marker, transaction journal, parent index, current pointer, and manifest publish as the final visibility step. With GraphVault Library 0.2 or newer, fencing tokens prevent stale recovered writers from publishing or releasing newer locks.
 
 Then open:
 
