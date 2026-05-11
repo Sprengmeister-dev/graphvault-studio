@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { startAdminServer } from "./admin-server.js";
 
 export interface ParsedAdminCliArgs {
@@ -90,7 +92,7 @@ export function parseAdminCliArgs(argv: readonly string[], env: NodeJS.ProcessEn
 
 export function adminCliHelp(): string {
   return [
-    "Usage: graphvault-admin --dir <storage-directory> [options]",
+    "Usage: graphvault-studio --dir <storage-directory> [options]",
     "",
     "Options:",
     "  --dir, --storage-directory <path>      Storage directory to inspect.",
@@ -182,7 +184,19 @@ function parsePort(value: string): number {
   return port;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+function isCliEntryPoint(moduleUrl: string, argvPath: string | undefined): boolean {
+  if (!argvPath) {
+    return false;
+  }
+  const modulePath = fileURLToPath(moduleUrl);
+  try {
+    return realpathSync(argvPath) === realpathSync(modulePath);
+  } catch {
+    return argvPath === modulePath;
+  }
+}
+
+if (isCliEntryPoint(import.meta.url, process.argv[1])) {
   main(process.argv.slice(2)).catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     console.error("");

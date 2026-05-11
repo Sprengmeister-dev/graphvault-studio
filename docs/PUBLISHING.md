@@ -18,11 +18,12 @@ npm ci
 npm test
 npm run demo:store
 npm run pack:dry-run
+npm run package:smoke
 ```
 
 `npm test` includes `npm run compat:check`, which verifies that Studio's `@sprengmeister/graphvault` dependency range accepts the runtime version recommended by the current Studio build. If the check warns that the lockfile resolves an older GraphVault Library, publish or install the newer library before a production Studio release.
 
-Inspect the dry-run file list and confirm it contains `README.md`, `LICENSE`, `CHANGELOG.md`, `CONTRIBUTING.md`, `docs`, `dist`, `examples`, logo/screenshot assets, and the `graphvault-studio` CLI entry point.
+Inspect the dry-run file list and confirm it contains `README.md`, `LICENSE`, `CHANGELOG.md`, `CONTRIBUTING.md`, `docs`, `dist`, `examples`, logo/screenshot assets, and the `graphvault-studio` CLI entry point. `npm run package:smoke` installs the generated tarball into a fresh temporary project, verifies the CLI help output, imports the public programmatic API, creates a real GraphVault store, and exercises search plus bounded subtree loading through the installed package.
 
 ## Tagging
 
@@ -37,7 +38,7 @@ git push origin v0.1.0
 
 Use the GitHub Actions `Release` workflow with the matching tag input, for example `v0.1.0`.
 
-The workflow checks out the tag, installs with `npm ci`, runs tests, creates the demo store, validates the npm tarball with `npm run pack:dry-run`, and publishes with npm provenance.
+The workflow checks out the tag, installs with `npm ci`, runs tests, creates the demo store, validates the npm tarball with `npm run pack:dry-run`, performs the fresh-install package smoke test, and publishes with npm provenance.
 
 ## Repository Visibility
 

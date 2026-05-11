@@ -11,6 +11,7 @@
 - Add bounded graph-slice/subtree endpoints and a Studio graph view depth control for large stores.
 - Show installed GraphVault Library compatibility status in the summary API and KPI bar.
 - Add a CI-friendly compatibility preflight so Studio's dependency range must accept the recommended GraphVault Library runtime.
+- Add a package install smoke gate that verifies the published CLI and programmatic API from a fresh tarball install.
 
 ## 0.1.1
 

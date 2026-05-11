@@ -151,4 +151,5 @@ The storage engine lives in [graphvault-library](https://github.com/Sprengmeiste
 - The Overview API and UI report the installed GraphVault Library version and warn when it is older than the recommended runtime for the current Studio build.
 - The package depends on GraphVault Library for storage layout, verification, parent index reading, and storage targets.
 - Run `npm test` to type-check, emit `dist/`, create a real store, exercise the admin client, and verify the embedded HTTP API.
+- Run `npm run package:smoke` before publishing to install the generated tarball into a fresh temporary project and verify the CLI plus public programmatic API as a consumer would use them.
 - CI runs on Node.js 20 and 22.
