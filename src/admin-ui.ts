@@ -63,6 +63,7 @@ export const ADMIN_HTML = `<!doctype html>
     .mutation summary { cursor: pointer; font-weight: 600; }
     .mutation[open] { display: grid; gap: 8px; }
     .mutation-grid { display: grid; grid-template-columns: 90px 1fr 1fr 1fr; gap: 8px; }
+    .audit-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
     .gvql-box { display: none; padding: 12px 14px; border-bottom: 1px solid var(--line); background: #f8fafb; gap: 8px; }
     .gvql-box.active { display: grid; }
     .gvql-examples { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -116,7 +117,7 @@ export const ADMIN_HTML = `<!doctype html>
       .field-actions { grid-area: actions; justify-content: flex-start; }
     }
     @media (max-width: 980px) {
-      .shell, .kpis, .mutation-grid, .topbar, .fields-head { grid-template-columns: 1fr; }
+      .shell, .kpis, .mutation-grid, .audit-grid, .topbar, .fields-head { grid-template-columns: 1fr; }
       .gvql-actions, .gvql-parameter-row { grid-template-columns: 1fr; }
       nav { grid-template-rows: auto; gap: 10px; padding: 12px; }
       .brand { grid-template-columns: 42px 1fr; padding-bottom: 2px; }
@@ -174,6 +175,11 @@ export const ADMIN_HTML = `<!doctype html>
                 <input id="mvalue" placeholder='New JSON value, e.g. "active"' />
                 <input id="confirmToken" placeholder="Confirm token" />
               </div>
+              <div class="audit-grid">
+                <input id="auditActor" placeholder="Actor, e.g. ops@example.com" />
+                <input id="auditReason" placeholder="Reason for change" />
+                <input id="auditTraceId" placeholder="Trace ID" />
+              </div>
               <div class="actions"><button onclick="preview()">Preview</button><button class="danger" onclick="mutate()">Commit Change</button></div>
             </details>
             <div class="gvql-box" id="gvqlPanel">
@@ -187,6 +193,8 @@ OFFSET 0</textarea>
               <input id="gvqlParams" type="hidden" />
               <div class="gvql-actions">
                 <input id="gvqlConfirmToken" placeholder="Confirm token" />
+                <input id="gvqlAuditActor" placeholder="Actor" />
+                <input id="gvqlAuditReason" placeholder="Reason" />
                 <button onclick="runGvql(true)">Run / Preview</button>
                 <button class="danger" onclick="runGvql(false)">Commit GVQL</button>
               </div>
@@ -849,6 +857,7 @@ OFFSET 0</textarea>
         dryRun
       };
       if (!dryRun && confirmRequired) payload.confirmToken = document.getElementById('gvqlConfirmToken').value;
+      if (!dryRun) payload.metadata = readAuditMetadata('gvql');
       const result = await postJson('/api/gvql', payload);
       const rows = [];
       if (result.plan) {
@@ -900,8 +909,19 @@ OFFSET 0</textarea>
     }
     const confirmRequired = __CONFIRM_REQUIRED__;
     if (!confirmRequired) document.getElementById('confirmToken').style.display = 'none';
+    if (!confirmRequired) document.getElementById('gvqlConfirmToken').style.display = 'none';
+    function readAuditMetadata(prefix) {
+      const actor = document.getElementById(prefix === 'gvql' ? 'gvqlAuditActor' : 'auditActor')?.value.trim();
+      const reason = document.getElementById(prefix === 'gvql' ? 'gvqlAuditReason' : 'auditReason')?.value.trim();
+      const traceId = prefix === 'gvql' ? '' : document.getElementById('auditTraceId')?.value.trim();
+      const metadata = { source: prefix === 'gvql' ? 'graphvault-studio:gvql' : 'graphvault-studio:direct-edit' };
+      if (actor) metadata.actor = actor;
+      if (reason) metadata.reason = reason;
+      if (traceId) metadata.traceId = traceId;
+      return metadata;
+    }
     function mutationPayload(includeConfirm) {
-      const payload = { objectId: document.getElementById('mid').value, path: document.getElementById('mpath').value, value: JSON.parse(document.getElementById('mvalue').value) };
+      const payload = { objectId: document.getElementById('mid').value, path: document.getElementById('mpath').value, value: JSON.parse(document.getElementById('mvalue').value), metadata: readAuditMetadata('direct') };
       if (includeConfirm) payload.confirmToken = document.getElementById('confirmToken').value;
       return payload;
     }

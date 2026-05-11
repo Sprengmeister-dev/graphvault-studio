@@ -47,6 +47,7 @@ It is deliberately generic. It does not assume customers, orders, tickets, CMS p
 - reads and writes versioned GraphVault object records used by crash-safe 0.2+ stores
 - admin mutations use writer locks, WAL prepare/commit records, and fencing-token validation when the installed GraphVault Library supports it
 - admin mutations preserve GraphVault's SHA-256 transaction hash chain for audit-oriented stores
+- direct edits and committed GVQL updates can attach actor, reason, source, and trace metadata to the transaction record
 - operational hardening KPIs and an Operations view for WAL mode, pending WAL recovery, writer lock status, mutation mode, and latest transaction
 - verification, maintenance, backup, transaction and journal views
 - optional bearer-token protection

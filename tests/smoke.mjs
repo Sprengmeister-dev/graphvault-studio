@@ -323,8 +323,15 @@ try {
 
   const mutationPreview = await client.previewMutation({ objectId: rootReference.rootObjectId, path: "name", value: "Developer docs" });
   assert.equal(mutationPreview.before, "Developer docs");
-  const mutationRecord = await client.mutate({ objectId: rootReference.rootObjectId, path: "name", value: "Developer docs" });
+  const mutationRecord = await client.mutate({
+    objectId: rootReference.rootObjectId,
+    path: "name",
+    value: "Developer docs",
+    metadata: { actor: "admin@example.com", reason: "smoke test direct edit", source: "studio-smoke" },
+  });
   assert.equal(typeof mutationRecord.transactionId, "number");
+  assert.equal(mutationRecord.metadata.actor, "admin@example.com");
+  assert.equal(mutationRecord.metadata.reason, "smoke test direct edit");
   assert.equal(typeof mutationRecord.envelopeHash, "string");
   assert.equal(typeof mutationRecord.transactionHash, "string");
   const postMutationManifest = JSON.parse(await readFile(join(storageDirectory, "manifest.json"), "utf8"));

@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { readFile } from "node:fs/promises";
 import { StorageAdminClient, type StorageAdminClientOptions } from "./admin-client.js";
 import { ADMIN_HTML } from "./admin-ui.js";
+import type { AdminTransactionMetadata } from "./admin-types.js";
 
 export interface AdminServerOptions extends StorageAdminClientOptions {
   host?: string;
@@ -118,14 +119,18 @@ async function route(client: StorageAdminClient, options: AdminServerOptions, re
     if (body?.dryRun !== true && options.mutationConfirmToken && body?.confirmToken !== options.mutationConfirmToken) {
       return sendJson(response, 403, { error: "GVQL mutation confirmation token is missing or invalid." });
     }
-    return sendJson(response, 200, await client.gvql(String(body?.query ?? ""), { parameters: body?.parameters ?? {}, dryRun: body?.dryRun === true }));
+    return sendJson(response, 200, await client.gvql(String(body?.query ?? ""), {
+      parameters: body?.parameters ?? {},
+      dryRun: body?.dryRun === true,
+      ...(body?.dryRun === true ? {} : { metadata: commitMetadataFromBody(body, request, "gvql") }),
+    }));
   }
   if (request.method === "POST" && url.pathname === "/api/mutate") {
     const body = await readJson(request);
     if (options.mutationConfirmToken && body?.confirmToken !== options.mutationConfirmToken) {
       return sendJson(response, 403, { error: "Mutation confirmation token is missing or invalid." });
     }
-    return sendJson(response, 200, await client.mutate(body));
+    return sendJson(response, 200, await client.mutate({ ...body, metadata: commitMetadataFromBody(body, request, "direct-edit") }));
   }
   sendJson(response, 404, { error: "Not found" });
 }
@@ -137,6 +142,49 @@ function numberParam(url: URL, name: string, fallback: number): number {
 
 function isAuthorized(request: IncomingMessage, authToken: string): boolean {
   return request.headers.authorization === `Bearer ${authToken}`;
+}
+
+function commitMetadataFromBody(body: any, request: IncomingMessage, source: string): AdminTransactionMetadata {
+  const input = typeof body?.metadata === "object" && body.metadata ? body.metadata : {};
+  const metadata: AdminTransactionMetadata = { source: stringOrUndefined(input.source) ?? `graphvault-studio:${source}` };
+  const actor = stringOrUndefined(input.actor) ?? stringOrUndefined(request.headers["x-graphvault-actor"]);
+  const reason = stringOrUndefined(input.reason);
+  const traceId = stringOrUndefined(input.traceId) ?? stringOrUndefined(request.headers["x-request-id"]);
+  const tags = Array.isArray(input.tags) ? input.tags.filter((tag: unknown) => typeof tag === "string") : undefined;
+  const attributes = plainAttributes(input.attributes);
+  if (actor) {
+    metadata.actor = actor;
+  }
+  if (reason) {
+    metadata.reason = reason;
+  }
+  if (traceId) {
+    metadata.traceId = traceId;
+  }
+  if (tags?.length) {
+    metadata.tags = tags;
+  }
+  if (attributes) {
+    metadata.attributes = attributes;
+  }
+  return metadata;
+}
+
+function stringOrUndefined(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function plainAttributes(value: unknown): AdminTransactionMetadata["attributes"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const attributes: NonNullable<AdminTransactionMetadata["attributes"]> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry === "string" || typeof entry === "number" || typeof entry === "boolean" || entry === null) {
+      attributes[key] = entry;
+    }
+  }
+  return Object.keys(attributes).length ? attributes : undefined;
 }
 
 function sendJson(response: ServerResponse, status: number, value: unknown): void {

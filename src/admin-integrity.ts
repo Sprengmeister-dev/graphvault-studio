@@ -3,11 +3,13 @@ import { join } from "node:path";
 import type { SerializedEnvelope, StorageTarget, TransactionRecord } from "@sprengmeister/graphvault/internal/core/types";
 import type { StorageLayout } from "@sprengmeister/graphvault/internal/storage/storage-layout";
 import type { VersionedStorageManifest } from "./admin-storage-io.js";
+import type { AdminTransactionMetadata } from "./admin-types.js";
 
 export type IntegrityTransactionRecord = TransactionRecord & {
   envelopeHash?: string;
   previousHash?: string;
   transactionHash?: string;
+  metadata?: AdminTransactionMetadata;
 };
 
 export type IntegrityStorageManifest = VersionedStorageManifest & {

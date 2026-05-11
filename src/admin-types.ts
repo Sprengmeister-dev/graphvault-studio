@@ -138,6 +138,16 @@ export interface AdminMutation {
   objectId: string;
   path: string;
   value: unknown;
+  metadata?: AdminTransactionMetadata;
+}
+
+export interface AdminTransactionMetadata {
+  actor?: string;
+  reason?: string;
+  source?: string;
+  traceId?: string;
+  tags?: string[];
+  attributes?: Record<string, string | number | boolean | null>;
 }
 
 export interface AdminMutationPreview {

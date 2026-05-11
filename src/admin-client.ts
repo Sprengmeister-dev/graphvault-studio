@@ -56,6 +56,7 @@ import type {
   AdminSearchResult,
   AdminSummary,
   AdminStorageHardening,
+  AdminTransactionMetadata,
   StorageAdminClientOptions,
 } from "./admin-types.js";
 
@@ -247,7 +248,7 @@ export class StorageAdminClient {
     return results;
   }
 
-  async gvql(query: string, options: GvqlExecutionOptions = {}): Promise<GvqlResult> {
+  async gvql(query: string, options: GvqlExecutionOptions & { metadata?: AdminTransactionMetadata } = {}): Promise<GvqlResult> {
     const manifest = await this.requireManifest();
     const envelope = await this.envelopeFromManifest(manifest);
     const statement = parseGvql(query);
@@ -256,7 +257,7 @@ export class StorageAdminClient {
       allowMutations: this.allowMutations && statement.kind === "update" && !options.dryRun,
     });
     if (result.kind === "update" && !result.dryRun) {
-      await this.commitEnvelope(manifest.transactionId, envelope, "standard", result.changes.length);
+      await this.commitEnvelope(manifest.transactionId, envelope, "standard", result.changes.length, options.metadata);
       this.parentIndex = undefined;
     }
     return result;
@@ -376,7 +377,7 @@ export class StorageAdminClient {
       throw new Error(`Object ${mutation.objectId} does not exist.`);
     }
     setNodePath(node, mutation.path, encodeAdminValue(mutation.value));
-    const record = await this.commitEnvelope(manifest.transactionId, envelope, "standard", 1);
+    const record = await this.commitEnvelope(manifest.transactionId, envelope, "standard", 1, mutation.metadata);
     this.parentIndex = undefined;
     return record;
   }
@@ -386,6 +387,7 @@ export class StorageAdminClient {
     envelope: SerializedEnvelope,
     mode: StoreMode,
     targetCount: number,
+    metadata?: AdminTransactionMetadata,
   ): Promise<TransactionRecord> {
     await this.target.ensureDirectory(this.walDirectory);
     const lock = await this.acquireWriteLock();
@@ -436,6 +438,7 @@ export class StorageAdminClient {
         objectIds,
         mode,
         targetCount,
+        ...(metadata ? { metadata } : {}),
         envelopeHash: envelopeHash(envelope),
         ...(previousTransaction?.transactionHash ? { previousHash: previousTransaction.transactionHash } : {}),
       };
