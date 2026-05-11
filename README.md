@@ -50,7 +50,7 @@ It is deliberately generic. It does not assume customers, orders, tickets, CMS p
 - direct edits and committed GVQL updates can attach actor, reason, source, and trace metadata to the transaction record
 - operational hardening KPIs and an Operations view for WAL mode, pending WAL recovery, writer lock status, mutation mode, and latest transaction
 - verification, maintenance, backup, transaction and journal views
-- optional bearer-token protection
+- optional bearer-token protection with viewer, operator, and admin roles
 - zero frontend build step; the UI is embedded in the TypeScript package
 
 ## Install
@@ -98,10 +98,26 @@ Optional auth:
 GRAPHVAULT_ADMIN_TOKEN=secret npx graphvault-studio --dir ./data
 ```
 
+Role-based tokens:
+
+```bash
+npx graphvault-studio \
+  --dir ./data \
+  --viewer-token view-secret \
+  --operator-token ops-secret \
+  --admin-token admin-secret \
+  --allow-mutations \
+  --confirm-token confirm
+```
+
+- viewer: read-only API and UI access.
+- operator: viewer access plus maintenance and backup endpoints.
+- admin: full access, including committed direct edits and GVQL mutations.
+
 For critical stores, run Studio with mutations behind authentication and a confirmation token:
 
 ```bash
-GRAPHVAULT_ADMIN_TOKEN=secret npx graphvault-studio \
+GRAPHVAULT_ADMIN_ROLE_TOKEN=secret npx graphvault-studio \
   --dir ./data \
   --allow-mutations \
   --confirm-token "$(openssl rand -hex 16)"

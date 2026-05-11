@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { EmbeddedStorage } from "@sprengmeister/graphvault";
 import { StorageAdminClient, startAdminServer } from "../dist/admin.js";
+import { parseAdminCliArgs } from "../dist/admin-cli.js";
 
 class Workspace {
   constructor(name) {
@@ -375,6 +376,11 @@ try {
   assert.equal(mergeNewPreview.changes.some((change) => change.operation === "merge" && change.alias === "doc"), true);
 
   await assertAdminServer(storageDirectory);
+  await assertAdminServerRbac(storageDirectory);
+  assert.deepEqual(
+    parseAdminCliArgs(["--dir", "data", "--viewer-token", "v", "--operator-token", "o", "--admin-token", "a"]).viewerToken,
+    "v",
+  );
 } finally {
   await rm(storageDirectory, { recursive: true, force: true });
 }
@@ -460,5 +466,67 @@ async function assertAdminServer(storageDirectory) {
     throw error;
   } finally {
     await server?.close();
+  }
+}
+
+async function assertAdminServerRbac(storageDirectory) {
+  let server;
+  const backupDirectory = await mkdtemp(join(tmpdir(), "graphvault-studio-rbac-backup-"));
+  try {
+    server = await startAdminServer({
+      storageDirectory,
+      port: 0,
+      allowMutations: true,
+      mutationConfirmToken: "confirm",
+      accessTokens: [
+        { token: "viewer", role: "viewer" },
+        { token: "operator", role: "operator" },
+        { token: "admin", role: "admin" },
+      ],
+    });
+    assert.equal((await fetch(`${server.url}/api/summary`)).status, 401);
+    const viewerSummary = await fetch(`${server.url}/api/summary?verify=false`, {
+      headers: { authorization: "Bearer viewer" },
+    });
+    assert.equal(viewerSummary.status, 200);
+    const viewerMaintenance = await fetch(`${server.url}/api/maintenance`, {
+      method: "POST",
+      headers: { authorization: "Bearer viewer", "content-type": "application/json" },
+      body: JSON.stringify({ keepSnapshots: 2 }),
+    });
+    assert.equal(viewerMaintenance.status, 403);
+    const operatorBackup = await fetch(`${server.url}/api/backup`, {
+      method: "POST",
+      headers: { authorization: "Bearer operator", "content-type": "application/json" },
+      body: JSON.stringify({ storageDirectory: backupDirectory }),
+    });
+    assert.equal(operatorBackup.status, 200);
+    const viewerCommit = await fetch(`${server.url}/api/gvql`, {
+      method: "POST",
+      headers: { authorization: "Bearer viewer", "content-type": "application/json" },
+      body: JSON.stringify({
+        query: 'MATCH (workspace:Workspace) SET workspace.name = "Blocked" RETURN workspace.name AS name',
+        confirmToken: "confirm",
+      }),
+    });
+    assert.equal(viewerCommit.status, 403);
+    const adminCommit = await fetch(`${server.url}/api/gvql`, {
+      method: "POST",
+      headers: { authorization: "Bearer admin", "content-type": "application/json" },
+      body: JSON.stringify({
+        query: 'MATCH (workspace:Workspace) SET workspace.name = "Developer docs" RETURN workspace.name AS name',
+        confirmToken: "confirm",
+        metadata: { actor: "rbac-admin", reason: "smoke-test" },
+      }),
+    });
+    assert.equal(adminCommit.status, 200);
+  } catch (error) {
+    if (error?.code === "EPERM" && process.env.CI !== "true") {
+      return;
+    }
+    throw error;
+  } finally {
+    await server?.close();
+    await rm(backupDirectory, { recursive: true, force: true });
   }
 }

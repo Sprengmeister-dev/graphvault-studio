@@ -53,4 +53,22 @@ await startAdminServer({
 });
 ```
 
-For mutation endpoints, always set `allowMutations: true` and a `mutationConfirmToken`. For exposed or shared environments, also set `authToken`.
+For mutation endpoints, always set `allowMutations: true` and a `mutationConfirmToken`. For exposed or shared environments, also set authentication. The legacy `authToken` option grants admin access. Prefer role tokens when several people or tools use Studio:
+
+```ts
+await startAdminServer({
+  storageDirectory: "main",
+  storageTarget,
+  allowMutations: true,
+  mutationConfirmToken: process.env.GRAPHVAULT_ADMIN_CONFIRM_TOKEN,
+  accessTokens: [
+    { token: process.env.GRAPHVAULT_VIEWER_TOKEN!, role: "viewer" },
+    { token: process.env.GRAPHVAULT_OPERATOR_TOKEN!, role: "operator" },
+    { token: process.env.GRAPHVAULT_ADMIN_ROLE_TOKEN!, role: "admin" },
+  ],
+});
+```
+
+- `viewer`: read-only inspection, search, verification, transactions, journal, and GVQL dry-runs.
+- `operator`: viewer plus maintenance and backup.
+- `admin`: operator plus committed direct edits and GVQL mutations. Admin writes should still use a confirmation token.

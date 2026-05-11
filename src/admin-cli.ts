@@ -7,6 +7,9 @@ export interface ParsedAdminCliArgs {
   port: number;
   allowMutations: boolean;
   authToken?: string;
+  viewerToken?: string;
+  operatorToken?: string;
+  adminToken?: string;
   mutationConfirmToken?: string;
   help: boolean;
 }
@@ -23,6 +26,15 @@ export function parseAdminCliArgs(argv: readonly string[], env: NodeJS.ProcessEn
   };
   if (env["GRAPHVAULT_ADMIN_TOKEN"]) {
     parsed.authToken = env["GRAPHVAULT_ADMIN_TOKEN"];
+  }
+  if (env["GRAPHVAULT_VIEWER_TOKEN"]) {
+    parsed.viewerToken = env["GRAPHVAULT_VIEWER_TOKEN"];
+  }
+  if (env["GRAPHVAULT_OPERATOR_TOKEN"]) {
+    parsed.operatorToken = env["GRAPHVAULT_OPERATOR_TOKEN"];
+  }
+  if (env["GRAPHVAULT_ADMIN_ROLE_TOKEN"]) {
+    parsed.adminToken = env["GRAPHVAULT_ADMIN_ROLE_TOKEN"];
   }
   if (env["GRAPHVAULT_ADMIN_CONFIRM_TOKEN"]) {
     parsed.mutationConfirmToken = env["GRAPHVAULT_ADMIN_CONFIRM_TOKEN"];
@@ -54,6 +66,18 @@ export function parseAdminCliArgs(argv: readonly string[], env: NodeJS.ProcessEn
       parsed.authToken = readValue(argv, ++index, arg);
       continue;
     }
+    if (arg === "--viewer-token") {
+      parsed.viewerToken = readValue(argv, ++index, arg);
+      continue;
+    }
+    if (arg === "--operator-token") {
+      parsed.operatorToken = readValue(argv, ++index, arg);
+      continue;
+    }
+    if (arg === "--admin-token") {
+      parsed.adminToken = readValue(argv, ++index, arg);
+      continue;
+    }
     if (arg === "--confirm-token" || arg === "--mutation-confirm-token") {
       parsed.mutationConfirmToken = readValue(argv, ++index, arg);
       continue;
@@ -73,12 +97,18 @@ export function adminCliHelp(): string {
     "  --host <host>                         Host to bind. Defaults to 127.0.0.1.",
     "  --port <port>                         Port to bind. Defaults to 4177.",
     "  --token, --auth-token <token>         Bearer token for UI/API access.",
+    "  --viewer-token <token>                Read-only bearer token.",
+    "  --operator-token <token>              Maintenance and backup bearer token.",
+    "  --admin-token <token>                 Full mutation bearer token.",
     "  --confirm-token <token>               Token required to commit mutations.",
     "  --allow-mutations                     Enable maintenance and data mutation APIs.",
     "  -h, --help                            Show this help.",
     "",
     "Environment:",
     "  GRAPHVAULT_ADMIN_TOKEN                Default bearer token.",
+    "  GRAPHVAULT_VIEWER_TOKEN               Read-only bearer token.",
+    "  GRAPHVAULT_OPERATOR_TOKEN             Maintenance and backup bearer token.",
+    "  GRAPHVAULT_ADMIN_ROLE_TOKEN           Full mutation bearer token.",
     "  GRAPHVAULT_ADMIN_CONFIRM_TOKEN        Default mutation confirmation token.",
   ].join("\n");
 }
@@ -102,13 +132,14 @@ async function main(argv: readonly string[]): Promise<void> {
   const running = await startAdminServer({
     ...serverOptions,
     ...(options.authToken ? { authToken: options.authToken } : {}),
+    ...(accessTokensFromOptions(options).length ? { accessTokens: accessTokensFromOptions(options) } : {}),
     ...(options.mutationConfirmToken ? { mutationConfirmToken: options.mutationConfirmToken } : {}),
   });
 
   console.log(`GraphVault Studio: ${running.url}`);
   console.log(`Storage directory: ${options.storageDirectory}`);
   console.log(`Mutations: ${options.allowMutations ? "enabled" : "disabled"}`);
-  if (options.authToken) {
+  if (options.authToken || accessTokensFromOptions(options).length) {
     console.log("Auth: bearer token required");
   }
   if (options.mutationConfirmToken) {
@@ -125,6 +156,14 @@ async function main(argv: readonly string[]): Promise<void> {
   };
   process.once("SIGINT", close);
   process.once("SIGTERM", close);
+}
+
+function accessTokensFromOptions(options: ParsedAdminCliArgs): Array<{ token: string; role: "viewer" | "operator" | "admin" }> {
+  return [
+    ...(options.viewerToken ? [{ token: options.viewerToken, role: "viewer" as const }] : []),
+    ...(options.operatorToken ? [{ token: options.operatorToken, role: "operator" as const }] : []),
+    ...(options.adminToken ? [{ token: options.adminToken, role: "admin" as const }] : []),
+  ];
 }
 
 function readValue(argv: readonly string[], index: number, option: string): string {

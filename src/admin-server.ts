@@ -8,7 +8,15 @@ export interface AdminServerOptions extends StorageAdminClientOptions {
   host?: string;
   port?: number;
   authToken?: string;
+  accessTokens?: AdminAccessToken[];
   mutationConfirmToken?: string;
+}
+
+export type AdminRole = "viewer" | "operator" | "admin";
+
+export interface AdminAccessToken {
+  token: string;
+  role: AdminRole;
 }
 
 export interface RunningAdminServer {
@@ -47,7 +55,7 @@ async function route(client: StorageAdminClient, options: AdminServerOptions, re
     response.end(
       ADMIN_HTML.replace("__CONFIRM_REQUIRED__", options.mutationConfirmToken ? "true" : "false").replace(
         "__AUTH_REQUIRED__",
-        options.authToken ? "true" : "false",
+        isAuthRequired(options) ? "true" : "false",
       ),
     );
     return;
@@ -58,7 +66,8 @@ async function route(client: StorageAdminClient, options: AdminServerOptions, re
     response.end(logo);
     return;
   }
-  if (options.authToken && !isAuthorized(request, options.authToken)) {
+  const access = authorize(request, options);
+  if (!access.authorized) {
     return sendJson(response, 401, { error: "Unauthorized" });
   }
   if (request.method === "GET" && url.pathname === "/api/summary") {
@@ -106,9 +115,15 @@ async function route(client: StorageAdminClient, options: AdminServerOptions, re
     return sendJson(response, 200, await client.verify());
   }
   if (request.method === "POST" && url.pathname === "/api/maintenance") {
+    if (!hasRole(access.role, "operator")) {
+      return sendJson(response, 403, { error: "Operator role is required for maintenance." });
+    }
     return sendJson(response, 200, await client.maintain(await readJson(request)));
   }
   if (request.method === "POST" && url.pathname === "/api/backup") {
+    if (!hasRole(access.role, "operator")) {
+      return sendJson(response, 403, { error: "Operator role is required for backup." });
+    }
     return sendJson(response, 200, await client.backup(await readJson(request)));
   }
   if (request.method === "POST" && url.pathname === "/api/preview-mutation") {
@@ -116,6 +131,9 @@ async function route(client: StorageAdminClient, options: AdminServerOptions, re
   }
   if (request.method === "POST" && url.pathname === "/api/gvql") {
     const body = await readJson(request);
+    if (body?.dryRun !== true && !hasRole(access.role, "admin")) {
+      return sendJson(response, 403, { error: "Admin role is required to commit GVQL mutations." });
+    }
     if (body?.dryRun !== true && options.mutationConfirmToken && body?.confirmToken !== options.mutationConfirmToken) {
       return sendJson(response, 403, { error: "GVQL mutation confirmation token is missing or invalid." });
     }
@@ -127,6 +145,9 @@ async function route(client: StorageAdminClient, options: AdminServerOptions, re
   }
   if (request.method === "POST" && url.pathname === "/api/mutate") {
     const body = await readJson(request);
+    if (!hasRole(access.role, "admin")) {
+      return sendJson(response, 403, { error: "Admin role is required to commit mutations." });
+    }
     if (options.mutationConfirmToken && body?.confirmToken !== options.mutationConfirmToken) {
       return sendJson(response, 403, { error: "Mutation confirmation token is missing or invalid." });
     }
@@ -140,8 +161,36 @@ function numberParam(url: URL, name: string, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
-function isAuthorized(request: IncomingMessage, authToken: string): boolean {
-  return request.headers.authorization === `Bearer ${authToken}`;
+function isAuthRequired(options: AdminServerOptions): boolean {
+  return Boolean(options.authToken || options.accessTokens?.length);
+}
+
+function authorize(request: IncomingMessage, options: AdminServerOptions): { authorized: boolean; role: AdminRole } {
+  if (!isAuthRequired(options)) {
+    return { authorized: true, role: "admin" };
+  }
+  const token = bearerToken(request);
+  if (token && options.authToken && token === options.authToken) {
+    return { authorized: true, role: "admin" };
+  }
+  const match = options.accessTokens?.find((entry) => entry.token === token);
+  if (match) {
+    return { authorized: true, role: match.role };
+  }
+  return { authorized: false, role: "viewer" };
+}
+
+function bearerToken(request: IncomingMessage): string | undefined {
+  const header = request.headers.authorization;
+  return typeof header === "string" && header.startsWith("Bearer ") ? header.slice("Bearer ".length) : undefined;
+}
+
+function hasRole(actual: AdminRole, required: AdminRole): boolean {
+  return roleRank(actual) >= roleRank(required);
+}
+
+function roleRank(role: AdminRole): number {
+  return role === "admin" ? 3 : role === "operator" ? 2 : 1;
 }
 
 function commitMetadataFromBody(body: any, request: IncomingMessage, source: string): AdminTransactionMetadata {
