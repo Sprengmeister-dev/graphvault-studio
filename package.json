@@ -37,7 +37,8 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node tests/smoke.mjs",
+    "compat:check": "node scripts/check-compatibility.mjs",
+    "test": "npm run compat:check && npm run build && node tests/smoke.mjs",
     "demo:store": "npm run build && node examples/create-demo-store.mjs",
     "pack:dry-run": "npm pack --dry-run --cache ./.npm-cache",
     "prepack": "npm run build"
@@ -58,7 +59,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@sprengmeister/graphvault": "0.1.0"
+    "@sprengmeister/graphvault": ">=0.1.0 <0.3.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",

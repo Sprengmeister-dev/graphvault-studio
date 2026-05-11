@@ -20,6 +20,8 @@ npm run demo:store
 npm run pack:dry-run
 ```
 
+`npm test` includes `npm run compat:check`, which verifies that Studio's `@sprengmeister/graphvault` dependency range accepts the runtime version recommended by the current Studio build. If the check warns that the lockfile resolves an older GraphVault Library, publish or install the newer library before a production Studio release.
+
 Inspect the dry-run file list and confirm it contains `README.md`, `LICENSE`, `CHANGELOG.md`, `CONTRIBUTING.md`, `docs`, `dist`, `examples`, logo/screenshot assets, and the `graphvault-studio` CLI entry point.
 
 ## Tagging
