@@ -38,6 +38,7 @@ export interface AdminSummary {
   typeDictionary?: TypeDictionary;
   hardening: AdminStorageHardening;
   operations: AdminOperationalStatus;
+  productionSafety: AdminProductionSafety;
   verification?: VerificationResult;
   verificationSkipped?: boolean;
 }
@@ -63,6 +64,29 @@ export interface AdminLibraryCompatibility {
   recommendedVersion: string;
   status: "ok" | "warning";
   warnings: string[];
+}
+
+export type AdminProductionSafetyStatus = "production-ready" | "warning" | "unsafe";
+
+export type AdminProductionSafetySeverity = "info" | "warning" | "critical";
+
+export interface AdminProductionSafetyIssue {
+  code: string;
+  severity: AdminProductionSafetySeverity;
+  message: string;
+  recommendation: string;
+}
+
+export interface AdminProductionSafety {
+  status: AdminProductionSafetyStatus;
+  score: number;
+  summary: string;
+  transactionLog: "full" | "off";
+  mutationsAllowed: boolean;
+  staleLockRecovery: boolean;
+  pendingRecovery: boolean;
+  hashChain: "present" | "missing";
+  issues: AdminProductionSafetyIssue[];
 }
 
 export interface AdminObjectListItem {

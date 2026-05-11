@@ -49,6 +49,7 @@ It is deliberately generic. It does not assume customers, orders, tickets, CMS p
 - admin mutations preserve GraphVault's SHA-256 transaction hash chain for audit-oriented stores
 - direct edits and committed GVQL updates can attach actor, reason, source, and trace metadata to the transaction record
 - operational hardening KPIs and an Operations view for WAL mode, pending WAL recovery, writer lock status, mutation mode, and latest transaction
+- production safety score with concrete warnings for WAL, stale-lock recovery, verification, and transaction hash-chain readiness
 - visible GraphVault Library compatibility status, including warnings for older runtime packages
 - verification, maintenance, backup, transaction and journal views
 - optional bearer-token protection with viewer, operator, and admin roles

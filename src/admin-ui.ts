@@ -327,9 +327,11 @@ OFFSET 0</textarea>
       const hardening = summary.hardening || {};
       const ops = summary.operations || {};
       const library = summary.library || {};
+      const safety = summary.productionSafety || {};
       const walLabel = (hardening.transactionLog || '-') + (typeof ops.pendingWalCommits === 'number' ? ' / ' + ops.pendingWalCommits + ' pending' : '');
       const libraryLabel = (library.installedVersion || '-') + (library.status === 'warning' ? ' warning' : '');
-      kpis.innerHTML = kpi('Objects', summary.objectCount) + kpi('Transaction', summary.transactionId) + kpi('Library', libraryLabel) + kpi('WAL', walLabel) + kpi('Lock', hardening.writerLock || '-') + kpi('Ops', ops.status || '-') + kpi('Snapshot', summary.currentSnapshot || '-');
+      const safetyLabel = (safety.status || '-') + (typeof safety.score === 'number' ? ' / ' + safety.score : '');
+      kpis.innerHTML = kpi('Objects', summary.objectCount) + kpi('Transaction', summary.transactionId) + kpi('Safety', safetyLabel) + kpi('Library', libraryLabel) + kpi('WAL', walLabel) + kpi('Lock', hardening.writerLock || '-') + kpi('Ops', ops.status || '-') + kpi('Snapshot', summary.currentSnapshot || '-');
       return summary;
     }
     async function showHierarchy() {
@@ -422,6 +424,9 @@ OFFSET 0</textarea>
       const rows = [];
       if (summary.operations) {
         rows.push({ columns: [summary.operations.status, 'operations', summary.operations.pendingWalCommits + ' pending WAL commits', summary.operations.walCommitFiles + ' WAL commits'], onclick: () => show(summary.operations) });
+      }
+      if (summary.productionSafety) {
+        rows.push({ columns: [summary.productionSafety.status, 'production safety', summary.productionSafety.score + ' score', summary.productionSafety.issues.length + ' issues'], onclick: () => show(summary.productionSafety) });
       }
       if (summary.library) {
         rows.push({ columns: [summary.library.installedVersion || '-', 'library', 'recommended ' + summary.library.recommendedVersion, summary.library.status], onclick: () => show(summary.library) });
@@ -689,9 +694,12 @@ OFFSET 0</textarea>
     const showOperations = async () => {
       setView('operations');
       listTitle.textContent = 'Storage operations';
-      listHint.textContent = 'WAL and hardening';
-      const ops = await requestJson('/api/operations');
+      listHint.textContent = 'WAL, hardening, and production safety';
+      const summary = await requestJson('/api/summary?verify=false');
+      const ops = summary.operations || {};
+      const safety = summary.productionSafety || {};
       setRows([
+        { columns: [safety.status || '-', 'production safety', typeof safety.score === 'number' ? safety.score + ' score' : '-', (safety.issues || []).length + ' issues'], onclick: () => show(safety) },
         { columns: [ops.status, 'health', ops.pendingWalCommits + ' pending WAL commits', ops.latestWalTransactionId ? 'wal tx ' + ops.latestWalTransactionId : 'no wal'], onclick: () => show(ops) },
         { columns: [ops.transactionLog, 'wal', ops.walPrepareFiles + ' prepares', ops.walCommitFiles + ' commits'], onclick: () => show(ops) },
         { columns: [String(ops.checkedIntegrityHashes || 0), 'integrity hashes', 'transaction chain', ops.checkedIntegrityHashes ? 'present' : 'not recorded'], onclick: () => show(ops) },

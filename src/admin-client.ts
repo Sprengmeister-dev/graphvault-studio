@@ -54,6 +54,8 @@ import type {
   AdminObjectPage,
   AdminObjectParent,
   AdminOperationalStatus,
+  AdminProductionSafety,
+  AdminProductionSafetyIssue,
   AdminRootReference,
   AdminSearchResult,
   AdminSummary,
@@ -135,6 +137,8 @@ export class StorageAdminClient {
       this.readTypeDictionary(),
     ]);
     const verification = options.verify === false ? undefined : await this.verify();
+    const hardening = this.hardening();
+    const operations = await this.operations(manifest, latestTransaction);
     return {
       storageDirectory: this.options.storageDirectory,
       transactionId: manifest.transactionId,
@@ -143,8 +147,9 @@ export class StorageAdminClient {
       library: graphvaultLibraryCompatibility(),
       ...(latestTransaction ? { latestTransaction } : {}),
       ...(typeDictionary ? { typeDictionary } : {}),
-      hardening: this.hardening(),
-      operations: await this.operations(manifest, latestTransaction),
+      hardening,
+      operations,
+      productionSafety: this.productionSafety(hardening, operations, verification),
       ...(verification ? { verification } : { verificationSkipped: true }),
     };
   }
@@ -536,6 +541,83 @@ export class StorageAdminClient {
     };
   }
 
+  private productionSafety(
+    hardening: AdminStorageHardening,
+    operations: AdminOperationalStatus,
+    verification?: VerificationResult,
+  ): AdminProductionSafety {
+    const issues: AdminProductionSafetyIssue[] = [];
+    if (operations.pendingWalCommits > 0) {
+      issues.push({
+        code: "wal-recovery-pending",
+        severity: "critical",
+        message: `${operations.pendingWalCommits} committed WAL record(s) are newer than the published manifest.`,
+        recommendation: "Run a writable GraphVault instance with WAL recovery enabled before exposing or mutating the store.",
+      });
+    }
+    if (operations.transactionLog === "off") {
+      issues.push({
+        code: "transaction-log-disabled",
+        severity: "critical",
+        message: "The transaction log is disabled, so committed WAL recovery is not available.",
+        recommendation: 'Use transactionLog: "full" for critical stores.',
+      });
+    }
+    if (!hardening.staleLockRecovery) {
+      issues.push({
+        code: "stale-lock-recovery-disabled",
+        severity: "warning",
+        message: "Stale writer-lock recovery is not configured.",
+        recommendation: "Configure staleLockTimeoutMs above the longest expected transaction runtime for multi-pod stores.",
+      });
+    }
+    if (!operations.checkedIntegrityHashes) {
+      issues.push({
+        code: "hash-chain-missing",
+        severity: "warning",
+        message: "The summary did not find a transaction hash-chain head in the latest manifest.",
+        recommendation: "Rewrite the store with a current GraphVault Library version to restore tamper-evident transaction history.",
+      });
+    }
+    if (verification?.errors.length) {
+      issues.push({
+        code: "verification-errors",
+        severity: "critical",
+        message: `Verification reported ${verification.errors.length} error(s).`,
+        recommendation: "Inspect verification details and restore or repair the store before serving critical traffic.",
+      });
+    }
+    const verificationWarnings = verification && "warnings" in verification && Array.isArray(verification.warnings) ? verification.warnings : [];
+    if (verificationWarnings.length) {
+      issues.push({
+        code: "verification-warnings",
+        severity: "warning",
+        message: `Verification reported ${verificationWarnings.length} warning(s).`,
+        recommendation: "Review verification warnings before promoting the store to production.",
+      });
+    }
+    if (this.allowMutations) {
+      issues.push({
+        code: "admin-mutations-enabled",
+        severity: "info",
+        message: "Studio mutation endpoints are enabled for this admin session.",
+        recommendation: "Keep mutations behind admin authentication and a high-entropy confirmation token.",
+      });
+    }
+
+    return {
+      status: productionSafetyStatus(issues),
+      score: productionSafetyScore(issues),
+      summary: productionSafetySummary(issues),
+      transactionLog: operations.transactionLog,
+      mutationsAllowed: this.allowMutations,
+      staleLockRecovery: hardening.staleLockRecovery,
+      pendingRecovery: operations.pendingWalCommits > 0,
+      hashChain: operations.checkedIntegrityHashes ? "present" : "missing",
+      issues,
+    };
+  }
+
   private async acquireWriteLock(): Promise<MaybeFencedLock> {
     const acquireLock = this.target.acquireLock as (
       path: string,
@@ -636,4 +718,33 @@ function liveObjectRecordFiles(manifest: VersionedStorageManifest, extension: "j
     files.add(`${objectId}.${manifest.objectVersions?.[objectId] ?? manifest.transactionId}.${extension}`);
   }
   return files;
+}
+
+function productionSafetyStatus(issues: AdminProductionSafetyIssue[]): AdminProductionSafety["status"] {
+  if (issues.some((issue) => issue.severity === "critical")) {
+    return "unsafe";
+  }
+  if (issues.some((issue) => issue.severity === "warning")) {
+    return "warning";
+  }
+  return "production-ready";
+}
+
+function productionSafetyScore(issues: AdminProductionSafetyIssue[]): number {
+  const penalty = issues.reduce((total, issue) => {
+    if (issue.severity === "critical") return total + 35;
+    if (issue.severity === "warning") return total + 12;
+    return total + 2;
+  }, 0);
+  return Math.max(0, 100 - penalty);
+}
+
+function productionSafetySummary(issues: AdminProductionSafetyIssue[]): string {
+  if (issues.some((issue) => issue.severity === "critical")) {
+    return "Not safe for critical production writes until critical issues are resolved.";
+  }
+  if (issues.some((issue) => issue.severity === "warning")) {
+    return "Usable with caveats; review warnings before using for critical or multi-pod stores.";
+  }
+  return "Configured for critical production use according to GraphVault Studio's local safety checks.";
 }

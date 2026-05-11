@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4
+
+- Add production safety status and score to the summary API, Overview, KPI bar, and Operations view.
+- Surface concrete warnings for pending WAL recovery, disabled WAL, missing stale-lock recovery, verification findings, and missing transaction hash-chain metadata.
+
 ## 0.1.3
 
 - Fix the published `graphvault-studio` npm binary so it starts correctly through npm's `.bin` symlink.

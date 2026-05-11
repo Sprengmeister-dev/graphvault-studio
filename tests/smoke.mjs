@@ -65,6 +65,10 @@ try {
   assert.equal(summary.library.packageName, "@sprengmeister/graphvault");
   assert.equal(typeof summary.library.recommendedVersion, "string");
   assert.equal(["ok", "warning"].includes(summary.library.status), true);
+  assert.equal(summary.productionSafety.status, "warning");
+  assert.equal(summary.productionSafety.hashChain, "missing");
+  assert.equal(summary.productionSafety.issues.some((issue) => issue.code === "stale-lock-recovery-disabled"), true);
+  assert.equal(summary.productionSafety.issues.some((issue) => issue.code === "hash-chain-missing"), true);
 
   const rootReference = await client.rootReference();
   assert.equal(typeof rootReference.rootObjectId, "string");
@@ -426,6 +430,7 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(apiSummary.hardening.writerLock, "enabled");
     assert.equal(apiSummary.operations.status, "healthy");
     assert.equal(apiSummary.library.packageName, "@sprengmeister/graphvault");
+    assert.equal(["production-ready", "warning", "unsafe"].includes(apiSummary.productionSafety.status), true);
     const rootResponse = await fetch(`${server.url}/api/root`);
     assert.equal(rootResponse.status, 200);
     const apiRoot = await rootResponse.json();
@@ -447,6 +452,7 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(uiResponse.status, 200);
     const html = await uiResponse.text();
     assert.equal(html.includes("Storage operations"), true);
+    assert.equal(html.includes("production safety"), true);
     assert.equal(html.includes("Library"), true);
     assert.equal(html.includes("graphRoot"), true);
     assert.equal(html.includes("Load Graph Slice"), true);
