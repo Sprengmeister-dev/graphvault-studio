@@ -6,6 +6,13 @@ import { StorageWriter } from "@sprengmeister/graphvault/internal/storage/storag
 import { verifyStorage } from "@sprengmeister/graphvault/internal/storage/storage-verifier";
 import { buildParentIndexRecord } from "@sprengmeister/graphvault/internal/storage/storage-parent-index";
 import { executeGvqlStatement, parseGvql } from "@sprengmeister/graphvault/internal/gvql/gvql";
+import {
+  envelopeHash,
+  transactionRecordHash,
+  transactionHashPayload,
+  verifyAdminIntegrity,
+  type IntegrityTransactionRecord,
+} from "./admin-integrity.js";
 import { referencedChildren, summarizeNode, visitNode } from "./admin-inspection.js";
 import { encodeAdminValue, getNodePath, setNodePath } from "./admin-mutation.js";
 import { pathFromObjectToRoot } from "./admin-parent-index.js";
@@ -294,7 +301,7 @@ export class StorageAdminClient {
 
   async verify(): Promise<VerificationResult> {
     let manifest: VersionedStorageManifest | undefined;
-    return verifyStorage({
+    const result = await verifyStorage({
       target: this.target,
       lazyDirectory: this.layout.lazyDirectory,
       readManifest: async () => {
@@ -308,7 +315,23 @@ export class StorageAdminClient {
         }
         return this.readObjectRecord(manifest, objectId);
       },
-    });
+    }) as VerificationResult & { checkedIntegrityHashes?: number; warnings?: string[] };
+    result.warnings ??= [];
+    if (manifest) {
+      const integrity = await verifyAdminIntegrity({
+        target: this.target,
+        layout: this.layout,
+        manifest,
+        transactions: await this.listTransactions() as IntegrityTransactionRecord[],
+      });
+      result.checkedIntegrityHashes = (result.checkedIntegrityHashes ?? 0) + integrity.checkedIntegrityHashes;
+      result.warnings.push(...integrity.warnings);
+      result.errors.push(...integrity.errors);
+      result.ok = result.errors.length === 0;
+    } else {
+      result.checkedIntegrityHashes ??= 0;
+    }
+    return result;
   }
 
   async maintain(options: { keepSnapshots?: number } = {}): Promise<MaintenanceResult> {
@@ -403,7 +426,8 @@ export class StorageAdminClient {
         } satisfies StudioWalCommitRecord);
       }
       await this.assertLockValid(lock);
-      const record: TransactionRecord = {
+      const previousTransaction = (await this.listTransactions())[0] as IntegrityTransactionRecord | undefined;
+      const record: IntegrityTransactionRecord = {
         format: "graphvault-transaction",
         version: 1,
         transactionId,
@@ -412,13 +436,16 @@ export class StorageAdminClient {
         objectIds,
         mode,
         targetCount,
+        envelopeHash: envelopeHash(envelope),
+        ...(previousTransaction?.transactionHash ? { previousHash: previousTransaction.transactionHash } : {}),
       };
+      record.transactionHash = transactionRecordHash(transactionHashPayload(record));
       await this.writer.writeTransactionRecord(record);
       await this.assertLockValid(lock);
       await this.writer.writeParentIndex(envelope, transactionId);
       await this.assertLockValid(lock);
       await this.target.writeTextAtomic(this.layout.currentFile, snapshotFile);
-      await writeAdminManifest(this.target, this.layout, envelope, transactionId);
+      await writeAdminManifest(this.target, this.layout, envelope, transactionId, record.transactionHash);
       return record;
     } finally {
       await lock.release();
@@ -491,6 +518,7 @@ export class StorageAdminClient {
       latestJournalTransactionId: latestTransaction?.transactionId ?? 0,
       publishedTransactionId,
       pendingWalCommits,
+      checkedIntegrityHashes: manifest.latestTransactionHash ? 1 : 0,
       status: pendingWalCommits > 0 ? "recovery-pending" : "healthy",
     };
   }

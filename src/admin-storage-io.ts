@@ -10,6 +10,7 @@ import type { StorageLayout } from "@sprengmeister/graphvault/internal/storage/s
 
 export type VersionedStorageManifest = StorageManifest & {
   objectVersions?: Record<string, number>;
+  latestTransactionHash?: string;
 };
 
 export async function readAdminObjectRecord(
@@ -75,6 +76,7 @@ export async function writeAdminManifest(
   layout: StorageLayout,
   envelope: SerializedEnvelope,
   transactionId: number,
+  latestTransactionHash?: string,
 ): Promise<void> {
   const objectIds = Object.keys(envelope.nodes).sort((a, b) => Number(a) - Number(b));
   const objectVersions = Object.fromEntries(objectIds.map((objectId) => [objectId, transactionId]));
@@ -86,6 +88,7 @@ export async function writeAdminManifest(
     root: envelope.root,
     objectIds,
     objectVersions,
+    ...(latestTransactionHash ? { latestTransactionHash } : {}),
   } satisfies VersionedStorageManifest);
 }
 

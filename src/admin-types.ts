@@ -52,6 +52,7 @@ export interface AdminOperationalStatus {
   latestJournalTransactionId: number;
   publishedTransactionId: number;
   pendingWalCommits: number;
+  checkedIntegrityHashes?: number;
   status: "healthy" | "recovery-pending";
 }
 

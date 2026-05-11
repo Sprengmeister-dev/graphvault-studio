@@ -325,8 +325,11 @@ try {
   assert.equal(mutationPreview.before, "Developer docs");
   const mutationRecord = await client.mutate({ objectId: rootReference.rootObjectId, path: "name", value: "Developer docs" });
   assert.equal(typeof mutationRecord.transactionId, "number");
+  assert.equal(typeof mutationRecord.envelopeHash, "string");
+  assert.equal(typeof mutationRecord.transactionHash, "string");
   const postMutationManifest = JSON.parse(await readFile(join(storageDirectory, "manifest.json"), "utf8"));
   assert.equal(postMutationManifest.objectVersions[rootReference.rootObjectId], mutationRecord.transactionId);
+  assert.equal(postMutationManifest.latestTransactionHash, mutationRecord.transactionHash);
   await readdir(join(storageDirectory, "objects-bin")).then((files) =>
     assert.equal(files.includes(`${rootReference.rootObjectId}.${mutationRecord.transactionId}.bin`), true),
   );
@@ -334,6 +337,7 @@ try {
   assert.deepEqual(mutatedRootName.rows, [{ name: "Developer docs" }]);
   const maintenance = await client.maintain({ keepSnapshots: 2 });
   assert.equal(maintenance.verification.ok, true);
+  assert.equal(maintenance.verification.checkedIntegrityHashes > 0, true);
   const afterMaintenanceRootName = await client.gvql("MATCH (workspace:Workspace) RETURN workspace.name AS name");
   assert.deepEqual(afterMaintenanceRootName.rows, [{ name: "Developer docs" }]);
 
