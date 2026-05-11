@@ -62,6 +62,9 @@ try {
   assert.equal(summary.operations.transactionLog, "full");
   assert.equal(summary.operations.status, "healthy");
   assert.equal(summary.operations.pendingWalCommits, 0);
+  assert.equal(summary.library.packageName, "@sprengmeister/graphvault");
+  assert.equal(typeof summary.library.recommendedVersion, "string");
+  assert.equal(["ok", "warning"].includes(summary.library.status), true);
 
   const rootReference = await client.rootReference();
   assert.equal(typeof rootReference.rootObjectId, "string");
@@ -422,6 +425,7 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(apiSummary.verification.ok, true);
     assert.equal(apiSummary.hardening.writerLock, "enabled");
     assert.equal(apiSummary.operations.status, "healthy");
+    assert.equal(apiSummary.library.packageName, "@sprengmeister/graphvault");
     const rootResponse = await fetch(`${server.url}/api/root`);
     assert.equal(rootResponse.status, 200);
     const apiRoot = await rootResponse.json();
@@ -443,6 +447,7 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(uiResponse.status, 200);
     const html = await uiResponse.text();
     assert.equal(html.includes("Storage operations"), true);
+    assert.equal(html.includes("Library"), true);
     assert.equal(html.includes("graphRoot"), true);
     assert.equal(html.includes("Load Graph Slice"), true);
     assert.equal(html.includes('id="gvqlExamples"'), true);

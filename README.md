@@ -49,6 +49,7 @@ It is deliberately generic. It does not assume customers, orders, tickets, CMS p
 - admin mutations preserve GraphVault's SHA-256 transaction hash chain for audit-oriented stores
 - direct edits and committed GVQL updates can attach actor, reason, source, and trace metadata to the transaction record
 - operational hardening KPIs and an Operations view for WAL mode, pending WAL recovery, writer lock status, mutation mode, and latest transaction
+- visible GraphVault Library compatibility status, including warnings for older runtime packages
 - verification, maintenance, backup, transaction and journal views
 - optional bearer-token protection with viewer, operator, and admin roles
 - zero frontend build step; the UI is embedded in the TypeScript package
@@ -147,6 +148,7 @@ The storage engine lives in [graphvault-library](https://github.com/Sprengmeiste
 - Studio is a pure TypeScript package with no frontend build toolchain.
 - The UI is served from the embedded admin server, so `npx graphvault-studio --dir ./data` is enough to inspect a store.
 - The HTTP API exposes bounded graph slices through `/api/subtree?depth=2` and `/api/objects/:id/subtree?depth=2`, which is useful when you want to preview what an external REST endpoint would return.
+- The Overview API and UI report the installed GraphVault Library version and warn when it is older than the recommended runtime for the current Studio build.
 - The package depends on GraphVault Library for storage layout, verification, parent index reading, and storage targets.
 - Run `npm test` to type-check, emit `dist/`, create a real store, exercise the admin client, and verify the embedded HTTP API.
 - CI runs on Node.js 20 and 22.

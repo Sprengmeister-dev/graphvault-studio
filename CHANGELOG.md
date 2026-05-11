@@ -8,6 +8,8 @@
 - Publish `manifest.json` last for Studio mutation commits so late metadata failures remain recoverable instead of partially visible.
 - Add versioned object-record read/write compatibility for GraphVault 0.2+ stores and maintenance.
 - Add role-based access tokens for viewer, operator, and admin workflows.
+- Add bounded graph-slice/subtree endpoints and a Studio graph view depth control for large stores.
+- Show installed GraphVault Library compatibility status in the summary API and KPI bar.
 
 ## 0.1.1
 

@@ -33,6 +33,7 @@ export interface AdminSummary {
   transactionId: number;
   currentSnapshot?: string;
   objectCount: number;
+  library: AdminLibraryCompatibility;
   latestTransaction?: TransactionRecord;
   typeDictionary?: TypeDictionary;
   hardening: AdminStorageHardening;
@@ -54,6 +55,14 @@ export interface AdminOperationalStatus {
   pendingWalCommits: number;
   checkedIntegrityHashes?: number;
   status: "healthy" | "recovery-pending";
+}
+
+export interface AdminLibraryCompatibility {
+  packageName: "@sprengmeister/graphvault";
+  installedVersion?: string;
+  recommendedVersion: string;
+  status: "ok" | "warning";
+  warnings: string[];
 }
 
 export interface AdminObjectListItem {

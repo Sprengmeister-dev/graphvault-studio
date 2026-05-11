@@ -11,6 +11,7 @@ GraphVault Studio 0.1.0 is the first public graphical admin client for GraphVaul
 - Depth-limited subtree API and graph slice view for large stores.
 - GVQL console for graph queries and dry-run batch mutation previews.
 - Controlled primitive-field editing with confirmation-token safety.
+- Visible GraphVault Library compatibility status.
 - Verification, maintenance, backup, transaction, journal, graph, type dictionary, and object detail views.
 - CLI and programmatic server startup.
 - Local filesystem, custom, remote, S3-compatible, HTTP, and SQL-backed storage through GraphVault storage targets.

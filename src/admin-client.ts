@@ -13,6 +13,7 @@ import {
   verifyAdminIntegrity,
   type IntegrityTransactionRecord,
 } from "./admin-integrity.js";
+import { graphvaultLibraryCompatibility } from "./admin-compatibility.js";
 import { referencedChildren, summarizeNode, visitNode } from "./admin-inspection.js";
 import { encodeAdminValue, getNodePath, setNodePath } from "./admin-mutation.js";
 import { pathFromObjectToRoot } from "./admin-parent-index.js";
@@ -139,6 +140,7 @@ export class StorageAdminClient {
       transactionId: manifest.transactionId,
       ...(currentSnapshot ? { currentSnapshot } : {}),
       objectCount: manifest.objectIds.length,
+      library: graphvaultLibraryCompatibility(),
       ...(latestTransaction ? { latestTransaction } : {}),
       ...(typeDictionary ? { typeDictionary } : {}),
       hardening: this.hardening(),

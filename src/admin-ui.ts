@@ -326,8 +326,10 @@ OFFSET 0</textarea>
       const summary = await requestJson('/api/summary?verify=false');
       const hardening = summary.hardening || {};
       const ops = summary.operations || {};
+      const library = summary.library || {};
       const walLabel = (hardening.transactionLog || '-') + (typeof ops.pendingWalCommits === 'number' ? ' / ' + ops.pendingWalCommits + ' pending' : '');
-      kpis.innerHTML = kpi('Objects', summary.objectCount) + kpi('Transaction', summary.transactionId) + kpi('WAL', walLabel) + kpi('Lock', hardening.writerLock || '-') + kpi('Ops', ops.status || '-') + kpi('Snapshot', summary.currentSnapshot || '-');
+      const libraryLabel = (library.installedVersion || '-') + (library.status === 'warning' ? ' warning' : '');
+      kpis.innerHTML = kpi('Objects', summary.objectCount) + kpi('Transaction', summary.transactionId) + kpi('Library', libraryLabel) + kpi('WAL', walLabel) + kpi('Lock', hardening.writerLock || '-') + kpi('Ops', ops.status || '-') + kpi('Snapshot', summary.currentSnapshot || '-');
       return summary;
     }
     async function showHierarchy() {
@@ -420,6 +422,9 @@ OFFSET 0</textarea>
       const rows = [];
       if (summary.operations) {
         rows.push({ columns: [summary.operations.status, 'operations', summary.operations.pendingWalCommits + ' pending WAL commits', summary.operations.walCommitFiles + ' WAL commits'], onclick: () => show(summary.operations) });
+      }
+      if (summary.library) {
+        rows.push({ columns: [summary.library.installedVersion || '-', 'library', 'recommended ' + summary.library.recommendedVersion, summary.library.status], onclick: () => show(summary.library) });
       }
       if (summary.latestTransaction) {
         rows.push({ columns: ['#' + summary.latestTransaction.transactionId, summary.latestTransaction.mode, summary.latestTransaction.snapshotFile, summary.latestTransaction.objectIds.length + ' ids'], onclick: () => show(summary.latestTransaction) });
