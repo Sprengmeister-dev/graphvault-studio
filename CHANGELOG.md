@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3
+
+- Fix the published `graphvault-studio` npm binary so it starts correctly through npm's `.bin` symlink.
+- Align CLI help with the published `graphvault-studio` command name.
+- Add a package install smoke gate that verifies the published CLI and programmatic API from a fresh tarball install.
+
 ## 0.1.2
 
 - Publish the Studio CLI under the unscoped `graphvault-studio` npm package name for a reliable `npx graphvault-studio` install path.
@@ -11,7 +17,6 @@
 - Add bounded graph-slice/subtree endpoints and a Studio graph view depth control for large stores.
 - Show installed GraphVault Library compatibility status in the summary API and KPI bar.
 - Add a CI-friendly compatibility preflight so Studio's dependency range must accept the recommended GraphVault Library runtime.
-- Add a package install smoke gate that verifies the published CLI and programmatic API from a fresh tarball install.
 
 ## 0.1.1
 
