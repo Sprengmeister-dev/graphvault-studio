@@ -7,6 +7,7 @@ import type {
   TypeDictionary,
   VerificationResult,
 } from "@sprengmeister/graphvault/internal/core/types";
+import type { AdminIndexDetails, AdminIndexOptions } from "./admin-index.js";
 
 export type { GvqlResult } from "@sprengmeister/graphvault/internal/gvql/gvql";
 
@@ -14,6 +15,7 @@ export interface StorageAdminClientOptions {
   storageDirectory: string;
   storageTarget?: StorageTarget;
   channelCount?: number;
+  indexes?: boolean | AdminIndexOptions;
   allowMutations?: boolean;
   lockTimeoutMs?: number;
   staleLockTimeoutMs?: number;
@@ -37,6 +39,7 @@ export interface AdminSummary {
   latestTransaction?: TransactionRecord;
   typeDictionary?: TypeDictionary;
   hardening: AdminStorageHardening;
+  indexes?: AdminIndexDetails;
   operations: AdminOperationalStatus;
   productionSafety: AdminProductionSafety;
   verification?: VerificationResult;

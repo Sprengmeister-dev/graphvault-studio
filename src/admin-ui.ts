@@ -1,4 +1,5 @@
 import { STUDIO_GVQL_EXAMPLES } from "./gvql-examples.js";
+import { ADMIN_INDEX_SCRIPT, ADMIN_INDEX_STYLE } from "./admin-index-ui.js";
 
 export const ADMIN_HTML = `<!doctype html>
 <html lang="en">
@@ -129,6 +130,7 @@ export const ADMIN_HTML = `<!doctype html>
       .auth { grid-template-columns: 1fr; }
       .list { max-height: none; }
     }
+${ADMIN_INDEX_STYLE}
   </style>
 </head>
 <body>
@@ -140,6 +142,7 @@ export const ADMIN_HTML = `<!doctype html>
         <button class="nav-btn" data-view="overview" onclick="showOverview()">Overview</button>
         <button class="nav-btn" data-view="objects" onclick="showObjects()">Objects</button>
         <button class="nav-btn" data-view="graph" onclick="showGraph()">Graph</button>
+        <button class="nav-btn" data-view="indexes" onclick="showIndexes()">Indexes</button>
         <button class="nav-btn" data-view="gvql" onclick="showGvql()">GVQL</button>
         <button class="nav-btn" data-view="operations" onclick="showOperations()">Operations</button>
         <button class="nav-btn" data-view="types" onclick="showTypes()">Type Dictionary</button>
@@ -237,6 +240,7 @@ OFFSET 0</textarea>
       overview: ['Storage Overview', 'Health, object count, latest transaction, and current snapshot.'],
       objects: ['Objects', 'Browse graph records with type, preview, and transaction metadata.'],
       graph: ['Object Graph', 'Depth-limited graph slice for large stores and API-style inspection.'],
+      indexes: ['Index Administration', 'Persistent index status, configuration, and rebuilds.'],
       gvql: ['GVQL Query', 'Run graph pattern queries and preview batch updates.'],
       operations: ['Operations', 'Storage hardening, WAL state, and recovery readiness.'],
       types: ['Type Dictionary', 'Registered runtime types and schema metadata.'],
@@ -458,6 +462,9 @@ OFFSET 0</textarea>
       const rows = [];
       if (summary.operations) {
         rows.push({ columns: [summary.operations.status, 'operations', summary.operations.pendingWalCommits + ' pending WAL commits', summary.operations.walCommitFiles + ' WAL commits'], onclick: () => show(summary.operations) });
+      }
+      if (summary.indexes) {
+        rows.push({ columns: [summary.indexes.status.source, 'indexes', summary.indexes.status.propertyKeys + ' property keys', summary.indexes.status.edgeCount + ' edges'], onclick: () => showIndexes() });
       }
       if (summary.productionSafety) {
         rows.push({ columns: [summary.productionSafety.status, 'production safety', summary.productionSafety.score + ' score', summary.productionSafety.issues.length + ' issues'], onclick: () => show(summary.productionSafety) });
@@ -983,6 +990,7 @@ OFFSET 0</textarea>
         (plan.operations || []).join(' -> ')
       ].filter(Boolean).join(' | ').slice(0, 220);
     }
+${ADMIN_INDEX_SCRIPT}
     async function showSearch() {
       setView('search');
       listTitle.textContent = 'Search results';

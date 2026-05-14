@@ -14,6 +14,15 @@ import {
   type IntegrityTransactionRecord,
 } from "./admin-integrity.js";
 import { graphvaultLibraryCompatibility } from "./admin-compatibility.js";
+import {
+  describeAdminIndex,
+  readAdminIndexRecord,
+  resolveAdminIndexOptions,
+  writeAdminIndexRecord,
+  type AdminIndexDetails,
+  type AdminIndexOptions,
+  type ResolvedAdminIndexOptions,
+} from "./admin-index.js";
 import { referencedChildren, summarizeNode, visitNode } from "./admin-inspection.js";
 import { encodeAdminValue, getNodePath, setNodePath } from "./admin-mutation.js";
 import { pathFromObjectToRoot } from "./admin-parent-index.js";
@@ -119,6 +128,7 @@ export class StorageAdminClient {
   private readonly reader: StorageReader;
   private readonly writer: StorageWriter;
   private readonly allowMutations: boolean;
+  private readonly indexOptions: ResolvedAdminIndexOptions;
   private parentIndex: ParentIndexRecord | undefined;
 
   constructor(private readonly options: StorageAdminClientOptions) {
@@ -127,6 +137,7 @@ export class StorageAdminClient {
     this.reader = new StorageReader(this.target, this.layout);
     this.writer = new StorageWriter(this.target, this.layout);
     this.allowMutations = options.allowMutations ?? false;
+    this.indexOptions = resolveAdminIndexOptions(options.indexes);
   }
 
   async summary(options: { verify?: boolean } = {}): Promise<AdminSummary> {
@@ -138,6 +149,7 @@ export class StorageAdminClient {
     ]);
     const verification = options.verify === false ? undefined : await this.verify();
     const hardening = this.hardening();
+    const indexes = await this.indexes(manifest);
     const operations = await this.operations(manifest, latestTransaction);
     return {
       storageDirectory: this.options.storageDirectory,
@@ -148,6 +160,7 @@ export class StorageAdminClient {
       ...(latestTransaction ? { latestTransaction } : {}),
       ...(typeDictionary ? { typeDictionary } : {}),
       hardening,
+      indexes,
       operations,
       productionSafety: this.productionSafety(hardening, operations, verification),
       ...(verification ? { verification } : { verificationSkipped: true }),
@@ -350,6 +363,23 @@ export class StorageAdminClient {
     return result;
   }
 
+  async indexes(manifest?: VersionedStorageManifest): Promise<AdminIndexDetails> {
+    const currentManifest = manifest ?? await this.requireManifest();
+    return describeAdminIndex(this.layout, this.indexOptions, await readAdminIndexRecord(this.target, this.layout), currentManifest.transactionId);
+  }
+
+  async rebuildIndexes(options?: boolean | AdminIndexOptions): Promise<AdminIndexDetails> {
+    const resolved = resolveAdminIndexOptions(options ?? this.indexOptions);
+    const lock = await this.acquireWriteLock();
+    try {
+      const manifest = await this.requireManifest();
+      await writeAdminIndexRecord(this.target, this.layout, await this.envelopeFromManifest(manifest), manifest.transactionId, resolved);
+      return describeAdminIndex(this.layout, resolved, await readAdminIndexRecord(this.target, this.layout), manifest.transactionId);
+    } finally {
+      await lock.release();
+    }
+  }
+
   async maintain(options: { keepSnapshots?: number } = {}): Promise<MaintenanceResult> {
     this.assertMutationsAllowed();
     const garbageCollection = await this.collectGarbage();
@@ -461,6 +491,8 @@ export class StorageAdminClient {
       await this.writer.writeTransactionRecord(record);
       await this.assertLockValid(lock);
       await this.writer.writeParentIndex(envelope, transactionId);
+      await this.assertLockValid(lock);
+      await writeAdminIndexRecord(this.target, this.layout, envelope, transactionId, this.indexOptions);
       await this.assertLockValid(lock);
       await this.target.writeTextAtomic(this.layout.currentFile, snapshotFile);
       await writeAdminManifest(this.target, this.layout, envelope, transactionId, record.transactionHash);

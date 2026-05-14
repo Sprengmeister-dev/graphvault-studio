@@ -70,6 +70,17 @@ try {
   assert.equal(summary.productionSafety.hashChain, "missing");
   assert.equal(summary.productionSafety.issues.some((issue) => issue.code === "stale-lock-recovery-disabled"), true);
   assert.equal(summary.productionSafety.issues.some((issue) => issue.code === "hash-chain-missing"), true);
+  assert.equal(summary.indexes.status.source, "missing");
+
+  const rebuiltIndex = await client.rebuildIndexes({ mode: "configured", consistency: "strict", properties: ["status", { type: "Document", path: "id" }] });
+  assert.equal(rebuiltIndex.status.source, "storage");
+  assert.equal(rebuiltIndex.status.mode, "configured");
+  assert.equal(rebuiltIndex.record.indexedProperties.length, 2);
+  assert.equal(rebuiltIndex.topProperties.some((entry) => entry.path === "status"), true);
+  assert.equal(rebuiltIndex.topProperties.some((entry) => entry.type === "Document" && entry.path === "id"), true);
+  const persistedIndex = JSON.parse(await readFile(join(storageDirectory, "index.json"), "utf8"));
+  assert.equal(persistedIndex.format, "graphvault-index");
+  assert.equal(persistedIndex.mode, "configured");
 
   const rootReference = await client.rootReference();
   assert.equal(typeof rootReference.rootObjectId, "string");
@@ -359,6 +370,9 @@ try {
   const postMutationManifest = JSON.parse(await readFile(join(storageDirectory, "manifest.json"), "utf8"));
   assert.equal(postMutationManifest.objectVersions[rootReference.rootObjectId], mutationRecord.transactionId);
   assert.equal(postMutationManifest.latestTransactionHash, mutationRecord.transactionHash);
+  const postMutationIndex = await client.indexes();
+  assert.equal(postMutationIndex.status.source, "storage");
+  assert.equal(postMutationIndex.status.transactionId, mutationRecord.transactionId);
   await readdir(join(storageDirectory, "objects-bin")).then((files) =>
     assert.equal(files.includes(`${rootReference.rootObjectId}.${mutationRecord.transactionId}.bin`), true),
   );
@@ -459,6 +473,18 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(operationsResponse.status, 200);
     const operations = await operationsResponse.json();
     assert.equal(operations.pendingWalCommits, 0);
+    const indexesResponse = await fetch(`${server.url}/api/indexes`);
+    assert.equal(indexesResponse.status, 200);
+    const indexes = await indexesResponse.json();
+    assert.equal(["storage", "missing", "stale"].includes(indexes.status.source), true);
+    const rebuildResponse = await fetch(`${server.url}/api/indexes/rebuild`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mode: "auto", consistency: "strict" }),
+    });
+    assert.equal(rebuildResponse.status, 200);
+    const rebuilt = await rebuildResponse.json();
+    assert.equal(rebuilt.status.source, "storage");
     const uiResponse = await fetch(server.url);
     assert.equal(uiResponse.status, 200);
     const html = await uiResponse.text();
@@ -467,9 +493,11 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(html.includes("Expandable lazy tree"), true);
     assert.equal(html.includes("hierarchyExpanded"), true);
     assert.equal(html.includes('id="kpis"'), false);
-    assert.equal(html.includes("Library"), true);
+    assert.equal(html.includes("library"), true);
     assert.equal(html.includes("graphRoot"), true);
     assert.equal(html.includes("Load Graph Slice"), true);
+    assert.equal(html.includes("Index Administration"), true);
+    assert.equal(html.includes("Rebuild index"), true);
     assert.equal(html.includes('id="gvqlExamples"'), true);
     assert.equal(html.includes("Scalar functions"), true);
     assert.equal(html.includes("CASE update"), true);
@@ -548,6 +576,18 @@ async function assertAdminServerRbac(storageDirectory) {
       body: JSON.stringify({ keepSnapshots: 2 }),
     });
     assert.equal(viewerMaintenance.status, 403);
+    const viewerIndexRebuild = await fetch(`${server.url}/api/indexes/rebuild`, {
+      method: "POST",
+      headers: { authorization: "Bearer viewer", "content-type": "application/json" },
+      body: JSON.stringify({ mode: "auto" }),
+    });
+    assert.equal(viewerIndexRebuild.status, 403);
+    const operatorIndexRebuild = await fetch(`${server.url}/api/indexes/rebuild`, {
+      method: "POST",
+      headers: { authorization: "Bearer operator", "content-type": "application/json" },
+      body: JSON.stringify({ mode: "auto", consistency: "strict" }),
+    });
+    assert.equal(operatorIndexRebuild.status, 200);
     const operatorBackup = await fetch(`${server.url}/api/backup`, {
       method: "POST",
       headers: { authorization: "Bearer operator", "content-type": "application/json" },

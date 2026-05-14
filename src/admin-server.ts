@@ -76,6 +76,9 @@ async function route(client: StorageAdminClient, options: AdminServerOptions, re
   if (request.method === "GET" && url.pathname === "/api/operations") {
     return sendJson(response, 200, (await client.summary({ verify: false })).operations);
   }
+  if (request.method === "GET" && url.pathname === "/api/indexes") {
+    return sendJson(response, 200, await client.indexes());
+  }
   if (request.method === "GET" && url.pathname === "/api/root") {
     return sendJson(response, 200, await client.rootReference());
   }
@@ -127,6 +130,12 @@ async function route(client: StorageAdminClient, options: AdminServerOptions, re
       return sendJson(response, 403, { error: "Operator role is required for maintenance." });
     }
     return sendJson(response, 200, await client.maintain(await readJson(request)));
+  }
+  if (request.method === "POST" && url.pathname === "/api/indexes/rebuild") {
+    if (!hasRole(access.role, "operator")) {
+      return sendJson(response, 403, { error: "Operator role is required for index rebuilds." });
+    }
+    return sendJson(response, 200, await client.rebuildIndexes(await readJson(request)));
   }
   if (request.method === "POST" && url.pathname === "/api/backup") {
     if (!hasRole(access.role, "operator")) {

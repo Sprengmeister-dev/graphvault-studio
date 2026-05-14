@@ -42,6 +42,7 @@ It is deliberately generic. It does not assume customers, orders, tickets, CMS p
 - support for objects with multiple direct parents
 - paged object browser for large stores
 - depth-limited graph/subtree view for large stores and REST-style graph slices
+- persistent index administration with status, top indexed keys, configuration, and rebuild support
 - GVQL query console for graph queries and batch-update previews
 - editable primitive fields with preview and confirmation-token safety
 - reads and writes versioned GraphVault object records used by crash-safe 0.2+ stores
