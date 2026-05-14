@@ -1,6 +1,6 @@
 {
   "name": "graphvault-studio",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Graphical admin client for GraphVault object graph stores.",
   "repository": {
     "type": "git",
@@ -17,7 +17,7 @@
   "main": "./dist/admin.js",
   "types": "./dist/admin.d.ts",
   "bin": {
-    "graphvault-studio": "./dist/admin-cli.js"
+    "graphvault-studio": "dist/admin-cli.js"
   },
   "exports": {
     ".": {
