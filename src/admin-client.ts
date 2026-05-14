@@ -388,14 +388,21 @@ export class StorageAdminClient {
   }
 
   async backup(destination: { storageDirectory: string; storageTarget?: StorageTarget }): Promise<BackupResult> {
-    const filesCopied = await copyStorageTargetTree(
-      this.target,
-      destination.storageTarget ?? new LocalFilesystemTarget(),
-      this.options.storageDirectory,
-      destination.storageDirectory,
-    );
-    const manifest = await this.requireManifest();
-    return { filesCopied, transactionId: manifest.transactionId };
+    const lock = await this.acquireWriteLock();
+    try {
+      const manifest = await this.requireManifest();
+      const filesCopied = await copyStorageTargetTree(
+        this.target,
+        destination.storageTarget ?? new LocalFilesystemTarget(),
+        this.options.storageDirectory,
+        destination.storageDirectory,
+        { exclude: isTransientLockFile },
+      );
+      await this.assertLockValid(lock);
+      return { filesCopied, transactionId: manifest.transactionId, consistent: true };
+    } finally {
+      await lock.release();
+    }
   }
 
   async previewMutation(mutation: AdminMutation): Promise<AdminMutationPreview> {
@@ -651,12 +658,7 @@ export class StorageAdminClient {
   }
 
   private async acquireWriteLock(): Promise<MaybeFencedLock> {
-    const acquireLock = this.target.acquireLock as (
-      path: string,
-      timeoutMs: number,
-      options?: { staleLockTimeoutMs?: number },
-    ) => Promise<MaybeFencedLock>;
-    return acquireLock(this.layout.lockFile, this.options.lockTimeoutMs ?? 5_000, this.lockOptions());
+    return this.target.acquireLock(this.layout.lockFile, this.options.lockTimeoutMs ?? 5_000, this.lockOptions()) as Promise<MaybeFencedLock>;
   }
 
   private lockOptions(): { staleLockTimeoutMs?: number } {
@@ -750,6 +752,10 @@ function liveObjectRecordFiles(manifest: VersionedStorageManifest, extension: "j
     files.add(`${objectId}.${manifest.objectVersions?.[objectId] ?? manifest.transactionId}.${extension}`);
   }
   return files;
+}
+
+function isTransientLockFile(relativePath: string): boolean {
+  return relativePath === "LOCK" || relativePath === "LOCK.fencing-token";
 }
 
 function productionSafetyStatus(issues: AdminProductionSafetyIssue[]): AdminProductionSafety["status"] {

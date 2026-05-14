@@ -52,9 +52,10 @@ try {
   const storage = await EmbeddedStorage.start({ storageDirectory, root, types });
   await storage.storeRoot();
   await storage.shutdown();
+  await removeRuntimeLocks(storageDirectory);
   await convertStoreToVersionedObjectRecords(storageDirectory);
 
-  const client = new StorageAdminClient({ storageDirectory, allowMutations: true });
+  const client = new StorageAdminClient({ storageDirectory, allowMutations: true, staleLockTimeoutMs: 0 });
   const summary = await client.summary();
   assert.equal(summary.objectCount > 0, true);
   assert.equal(summary.verification.ok, true);
@@ -66,11 +67,11 @@ try {
   assert.equal(summary.library.packageName, "@sprengmeister/graphvault");
   assert.equal(typeof summary.library.recommendedVersion, "string");
   assert.equal(["ok", "warning"].includes(summary.library.status), true);
-  assert.equal(summary.productionSafety.status, "warning");
-  assert.equal(summary.productionSafety.hashChain, "missing");
-  assert.equal(summary.productionSafety.issues.some((issue) => issue.code === "stale-lock-recovery-disabled"), true);
-  assert.equal(summary.productionSafety.issues.some((issue) => issue.code === "hash-chain-missing"), true);
-  assert.equal(summary.indexes.status.source, "missing");
+  assert.equal(["production-ready", "warning"].includes(summary.productionSafety.status), true);
+  assert.equal(summary.productionSafety.hashChain, "present");
+  assert.equal(summary.productionSafety.issues.some((issue) => issue.code === "stale-lock-recovery-disabled"), false);
+  assert.equal(summary.productionSafety.issues.some((issue) => issue.code === "hash-chain-missing"), false);
+  assert.equal(summary.indexes.status.source, "storage");
 
   const rebuiltIndex = await client.rebuildIndexes({ mode: "configured", consistency: "strict", properties: ["status", { type: "Document", path: "id" }] });
   assert.equal(rebuiltIndex.status.source, "storage");
@@ -436,18 +437,31 @@ async function convertStoreToVersionedObjectRecords(storageDirectory) {
   manifest.objectVersions = {};
   for (const objectId of manifest.objectIds) {
     manifest.objectVersions[objectId] = manifest.transactionId;
-    await copyFile(join(storageDirectory, "objects-bin", `${objectId}.bin`), join(storageDirectory, "objects-bin", `${objectId}.${manifest.transactionId}.bin`));
-    await copyFile(join(storageDirectory, "objects", `${objectId}.json`), join(storageDirectory, "objects", `${objectId}.${manifest.transactionId}.json`));
+    await copyFileIfExists(join(storageDirectory, "objects-bin", `${objectId}.bin`), join(storageDirectory, "objects-bin", `${objectId}.${manifest.transactionId}.bin`));
+    await copyFileIfExists(join(storageDirectory, "objects", `${objectId}.json`), join(storageDirectory, "objects", `${objectId}.${manifest.transactionId}.json`));
     await rm(join(storageDirectory, "objects-bin", `${objectId}.bin`), { force: true });
     await rm(join(storageDirectory, "objects", `${objectId}.json`), { force: true });
   }
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
+async function copyFileIfExists(from, to) {
+  try {
+    await copyFile(from, to);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+}
+
+async function removeRuntimeLocks(storageDirectory) {
+  await rm(join(storageDirectory, "LOCK"), { force: true });
+  await rm(join(storageDirectory, "LOCK.fencing-token"), { force: true });
+}
+
 async function assertAdminServer(storageDirectory) {
   let server;
   try {
-    server = await startAdminServer({ storageDirectory, port: 0 });
+    server = await startAdminServer({ storageDirectory, port: 0, staleLockTimeoutMs: 0 });
     const response = await fetch(`${server.url}/api/summary`);
     assert.equal(response.status, 200);
     const apiSummary = await response.json();
@@ -558,6 +572,7 @@ async function assertAdminServerRbac(storageDirectory) {
       storageDirectory,
       port: 0,
       allowMutations: true,
+      staleLockTimeoutMs: 0,
       mutationConfirmToken: "confirm",
       accessTokens: [
         { token: "viewer", role: "viewer" },
@@ -594,6 +609,7 @@ async function assertAdminServerRbac(storageDirectory) {
       body: JSON.stringify({ storageDirectory: backupDirectory }),
     });
     assert.equal(operatorBackup.status, 200);
+    assert.equal((await operatorBackup.json()).consistent, true);
     const viewerCommit = await fetch(`${server.url}/api/gvql`, {
       method: "POST",
       headers: { authorization: "Bearer viewer", "content-type": "application/json" },

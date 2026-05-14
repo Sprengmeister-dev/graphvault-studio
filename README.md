@@ -1,7 +1,7 @@
 # GraphVault Studio
 
 [![CI](https://github.com/Sprengmeister-dev/graphvault-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/Sprengmeister-dev/graphvault-studio/actions/workflows/ci.yml)
-![Node](https://img.shields.io/badge/node-%3E%3D20-3c7a52)
+![Node](https://img.shields.io/badge/node-%3E%3D26-3c7a52)
 ![TypeScript](https://img.shields.io/badge/TypeScript-first-315c92)
 ![License](https://img.shields.io/badge/license-MIT-2f2f2f)
 
@@ -64,7 +64,7 @@ From npm:
 npm install graphvault-studio
 ```
 
-GraphVault Studio requires Node.js 20 or newer. The npm package is scoped, but the executable remains the short `graphvault-studio` command.
+GraphVault Studio requires Node.js 26 or newer. The npm package is scoped, but the executable remains the short `graphvault-studio` command.
 
 ## Run
 
@@ -168,4 +168,4 @@ The storage engine lives in [graphvault-library](https://github.com/Sprengmeiste
 - The package depends on GraphVault Library for storage layout, verification, parent index reading, and storage targets.
 - Run `npm test` to type-check, emit `dist/`, create a real store, exercise the admin client, and verify the embedded HTTP API.
 - Run `npm run package:smoke` before publishing to install the generated tarball into a fresh temporary project and verify the CLI plus public programmatic API as a consumer would use them.
-- CI runs on Node.js 20 and 22.
+- CI runs on Node.js 26.

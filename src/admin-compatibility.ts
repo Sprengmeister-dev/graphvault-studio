@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import type { AdminLibraryCompatibility } from "./admin-types.js";
 
-const RECOMMENDED_GRAPHVAULT_VERSION = "0.2.0";
+const RECOMMENDED_GRAPHVAULT_VERSION = "0.2.2";
 
 export function graphvaultLibraryCompatibility(): AdminLibraryCompatibility {
   const installedVersion = readInstalledGraphVaultVersion();

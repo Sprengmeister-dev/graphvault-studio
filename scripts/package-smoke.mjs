@@ -67,7 +67,7 @@ try {
   const summary = await client.summary({ verify: false });
   assert.equal(summary.objectCount >= 2, true);
   assert.equal(summary.library.packageName, "@sprengmeister/graphvault");
-  assert.equal(summary.library.recommendedVersion, "0.2.0");
+  assert.equal(summary.library.recommendedVersion, "0.2.2");
 
   const rootReference = await client.rootReference();
   assert.equal(typeof rootReference.rootObjectId, "string");
