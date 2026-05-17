@@ -73,14 +73,32 @@ try {
   assert.equal(summary.productionSafety.issues.some((issue) => issue.code === "hash-chain-missing"), false);
   assert.equal(summary.indexes.status.source, "storage");
 
-  const rebuiltIndex = await client.rebuildIndexes({ mode: "configured", consistency: "strict", properties: ["status", { type: "Document", path: "id" }] });
+  const rebuiltIndex = await client.rebuildIndexes({
+    mode: "configured",
+    consistency: "strict",
+    properties: ["status", { type: "Document", path: "id" }],
+    composites: [{ name: "document_status_owner", type: "Document", paths: ["status", "owner"] }],
+    ranges: [{ name: "document_views", type: "Document", path: "views" }],
+    text: [{ name: "document_title_substring", type: "Document", path: "title", minGram: 2, maxGram: 4 }],
+    fullText: [{ name: "document_title_terms", type: "Document", path: "title" }],
+    unique: [{ name: "document_id_unique", type: "Document", path: "id" }],
+    expressions: [{ name: "document_title_lower", type: "Document", expression: { fn: "lower", path: "title" } }],
+  });
   assert.equal(rebuiltIndex.status.source, "storage");
   assert.equal(rebuiltIndex.status.mode, "configured");
   assert.equal(rebuiltIndex.record.indexedProperties.length, 2);
+  assert.equal(rebuiltIndex.record.advancedDefinitions, 6);
+  assert.equal(rebuiltIndex.advancedDefinitions.length, 6);
+  assert.equal(rebuiltIndex.advancedDefinitions.some((entry) => entry.kind === "text" && entry.keys > 0), true);
+  assert.equal(rebuiltIndex.advancedDefinitions.some((entry) => entry.kind === "unique" && entry.keys > 0), true);
+  assert.equal(rebuiltIndex.status.advancedIndexes >= 6, true);
+  assert.equal(rebuiltIndex.status.textTerms > 0, true);
+  assert.equal(rebuiltIndex.status.uniqueKeys > 0, true);
   assert.equal(rebuiltIndex.topProperties.some((entry) => entry.path === "status"), true);
   assert.equal(rebuiltIndex.topProperties.some((entry) => entry.type === "Document" && entry.path === "id"), true);
   const persistedIndex = JSON.parse(await readFile(join(storageDirectory, "index.json"), "utf8"));
   assert.equal(persistedIndex.format, "graphvault-index");
+  assert.equal(persistedIndex.version, 2);
   assert.equal(persistedIndex.mode, "configured");
 
   const rootReference = await client.rootReference();

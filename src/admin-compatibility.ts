@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { AdminLibraryCompatibility } from "./admin-types.js";
 
-const RECOMMENDED_GRAPHVAULT_VERSION = "0.2.2";
+const RECOMMENDED_GRAPHVAULT_VERSION = "0.2.8";
 
 export function graphvaultLibraryCompatibility(): AdminLibraryCompatibility {
   const installedVersion = readInstalledGraphVaultVersion();
@@ -23,15 +24,50 @@ export function graphvaultLibraryCompatibility(): AdminLibraryCompatibility {
 }
 
 function readInstalledGraphVaultVersion(): string | undefined {
+  const candidates: string[] = [];
+
+  try {
+    candidates.push(fileURLToPath(import.meta.resolve("@sprengmeister/graphvault/internal/core/types")));
+  } catch {
+    // Keep the CommonJS resolver fallback below for older toolchains.
+  }
+
   try {
     const require = createRequire(import.meta.url);
-    const entry = require.resolve("@sprengmeister/graphvault");
-    const packageJsonPath = join(dirname(dirname(entry)), "package.json");
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { version?: unknown };
-    return typeof packageJson.version === "string" ? packageJson.version : undefined;
+    candidates.push(require.resolve("@sprengmeister/graphvault/internal/core/types"));
   } catch {
-    return undefined;
+    // The compatibility endpoint should degrade to a warning instead of breaking Studio startup.
   }
+
+  for (const candidate of candidates) {
+    const version = readPackageVersionNear(candidate);
+    if (version) {
+      return version;
+    }
+  }
+
+  return undefined;
+}
+
+function readPackageVersionNear(start: string): string | undefined {
+  let directory = dirname(start);
+  for (let depth = 0; depth < 8; depth++) {
+    const packageJsonPath = join(directory, "package.json");
+    try {
+      const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { name?: unknown; version?: unknown };
+      if (packageJson.name === "@sprengmeister/graphvault" && typeof packageJson.version === "string") {
+        return packageJson.version;
+      }
+    } catch {
+      // Walk upward until we reach the package root.
+    }
+    const parent = dirname(directory);
+    if (parent === directory) {
+      break;
+    }
+    directory = parent;
+  }
+  return undefined;
 }
 
 function compareSemver(left: string, right: string): number {

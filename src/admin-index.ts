@@ -1,60 +1,27 @@
-import { createHash } from "node:crypto";
 import { join } from "node:path";
-import type { EncodedNode, EncodedValue, SerializedEnvelope, StorageTarget } from "@sprengmeister/graphvault/internal/core/types";
+import type {
+  SerializedEnvelope,
+  StorageIndexDefinition,
+  StorageIndexOptions,
+  StorageIndexRecord,
+  StorageIndexStatus,
+  StorageTarget,
+} from "@sprengmeister/graphvault/internal/core/types";
 import type { StorageLayout } from "@sprengmeister/graphvault/internal/storage/storage-layout";
+import {
+  buildStorageIndexRecord,
+  resolveStorageIndexOptions,
+  storageIndexStatus,
+  type ResolvedStorageIndexOptions,
+} from "@sprengmeister/graphvault/internal/storage/storage-index";
 
 export type AdminIndexMode = "off" | "auto" | "configured";
 export type AdminIndexConsistency = "strict" | "committed";
-
-export interface AdminIndexDefinition {
-  type?: string;
-  path: string;
-}
-
-export interface AdminIndexOptions {
-  mode?: AdminIndexMode;
-  consistency?: AdminIndexConsistency;
-  properties?: Array<string | AdminIndexDefinition>;
-}
-
-export interface ResolvedAdminIndexOptions {
-  mode: AdminIndexMode;
-  consistency: AdminIndexConsistency;
-  properties: AdminIndexDefinition[];
-}
-
-export interface AdminIndexEdge {
-  from: string;
-  to: string;
-  path: string;
-  label: string;
-}
-
-export interface AdminStorageIndexRecord {
-  format: "graphvault-index";
-  version: 1;
-  transactionId: number;
-  createdAt: string;
-  envelopeHash: string;
-  nodeCount: number;
-  mode: Exclude<AdminIndexMode, "off">;
-  indexedProperties: AdminIndexDefinition[];
-  byType: Record<string, string[]>;
-  byProperty: Record<string, string[]>;
-  outgoing: Record<string, AdminIndexEdge[]>;
-  incoming: Record<string, AdminIndexEdge[]>;
-}
-
-export interface AdminIndexStatus {
-  enabled: boolean;
-  mode: AdminIndexMode;
-  consistency: AdminIndexConsistency;
-  transactionId?: number;
-  nodeCount: number;
-  propertyKeys: number;
-  edgeCount: number;
-  source: "storage" | "missing" | "stale" | "disabled";
-}
+export type AdminIndexDefinition = StorageIndexDefinition;
+export type AdminIndexOptions = StorageIndexOptions;
+export type ResolvedAdminIndexOptions = ResolvedStorageIndexOptions;
+export type AdminStorageIndexRecord = StorageIndexRecord;
+export type AdminIndexStatus = StorageIndexStatus;
 
 export interface AdminIndexDetails {
   file: string;
@@ -64,6 +31,8 @@ export interface AdminIndexDetails {
   topTypes: Array<{ type: string; count: number }>;
   topProperties: Array<{ key: string; type: string; path: string; value: string; count: number }>;
   topOutgoing: Array<{ objectId: string; edgeCount: number }>;
+  advancedDefinitions: AdminAdvancedIndexSummary[];
+  advancedStatistics: Array<{ name: string; entries: number; keys: number; maxBucketSize: number; averageBucketSize: number; selectivity: number }>;
 }
 
 interface AdminIndexRecordSummary {
@@ -72,26 +41,27 @@ interface AdminIndexRecordSummary {
   mode: Exclude<AdminIndexMode, "off">;
   envelopeHash: string;
   indexedProperties: AdminIndexDefinition[];
+  advancedDefinitions: number;
+}
+
+interface AdminAdvancedIndexSummary {
+  name: string;
+  kind: string;
+  target: string;
+  keys: number;
+  entries: number;
+  selectivity: number;
+  maxBucketSize: number;
 }
 
 export function resolveAdminIndexOptions(options: boolean | AdminIndexOptions | undefined): ResolvedAdminIndexOptions {
-  if (options === false) {
-    return { mode: "off", consistency: "strict", properties: [] };
-  }
-  if (options === true || !options) {
-    return { mode: "auto", consistency: "strict", properties: [] };
-  }
-  return {
-    mode: options.mode ?? (options.properties?.length ? "configured" : "auto"),
-    consistency: options.consistency ?? "strict",
-    properties: normalizeIndexDefinitions(options.properties ?? []),
-  };
+  return resolveStorageIndexOptions(options);
 }
 
 export async function readAdminIndexRecord(target: StorageTarget, layout: StorageLayout): Promise<AdminStorageIndexRecord | undefined> {
   try {
     const value = JSON.parse(await target.readText(adminIndexFile(layout))) as AdminStorageIndexRecord;
-    return value?.format === "graphvault-index" && value.version === 1 ? value : undefined;
+    return value?.format === "graphvault-index" && value.version === 2 ? value : undefined;
   } catch {
     return undefined;
   }
@@ -104,11 +74,11 @@ export async function writeAdminIndexRecord(
   transactionId: number,
   options: ResolvedAdminIndexOptions,
 ): Promise<AdminStorageIndexRecord | undefined> {
-  if (options.mode === "off") {
+  const record = buildStorageIndexRecord(envelope, transactionId, options);
+  if (!record) {
     await target.remove(adminIndexFile(layout)).catch(() => undefined);
     return undefined;
   }
-  const record = buildAdminIndexRecord(envelope, transactionId, options);
   await target.writeTextAtomic(adminIndexFile(layout), `${JSON.stringify(record, null, 2)}\n`);
   return record;
 }
@@ -119,187 +89,22 @@ export function describeAdminIndex(
   record: AdminStorageIndexRecord | undefined,
   transactionId: number,
 ): AdminIndexDetails {
+  const effectiveOptions = effectiveAdminIndexOptions(options, record);
   return {
     file: adminIndexFile(layout),
-    status: adminIndexStatus(options, record, transactionId),
-    configured: options,
+    status: storageIndexStatus({ options: effectiveOptions, record, transactionId }),
+    configured: effectiveOptions,
     ...(record ? { record: summarizeRecord(record) } : {}),
     topTypes: topEntries(record?.byType ?? {}, "type").map(({ key, count }) => ({ type: key, count })),
     topProperties: topEntries(record?.byProperty ?? {}, "property").map(({ key, count }) => ({ key, ...splitPropertyIndexKey(key), count })),
     topOutgoing: topEntries(record?.outgoing ?? {}, "edge").map(({ key, count }) => ({ objectId: key, edgeCount: count })),
+    advancedDefinitions: summarizeAdvancedDefinitions(record),
+    advancedStatistics: summarizeAdvancedStatistics(record),
   };
 }
 
 export function adminIndexFile(layout: StorageLayout): string {
   return "indexFile" in layout && typeof layout.indexFile === "string" ? layout.indexFile : join(layout.storageDirectory, "index.json");
-}
-
-function buildAdminIndexRecord(
-  envelope: SerializedEnvelope,
-  transactionId: number,
-  options: ResolvedAdminIndexOptions,
-): AdminStorageIndexRecord {
-  const byType = new Map<string, string[]>();
-  const byProperty = new Map<string, string[]>();
-  const outgoing = new Map<string, AdminIndexEdge[]>();
-  const incoming = new Map<string, AdminIndexEdge[]>();
-  const configured = configuredPropertyKeys(options.properties);
-
-  for (const [objectId, node] of Object.entries(envelope.nodes)) {
-    if (node.kind === "object" && node.type) {
-      append(byType, node.type, objectId);
-    }
-    if (node.kind === "object") {
-      for (const [path, value] of Object.entries(node.props)) {
-        if (options.mode === "configured" && !configured.has(propertyKey(node.type, path)) && !configured.has(propertyKey(undefined, path))) {
-          continue;
-        }
-        indexProperty(byProperty, node.type, path, encodedValueToJs(value), objectId);
-      }
-    }
-    for (const edge of referencedEdges(objectId, node)) {
-      append(outgoing, edge.from, edge);
-      append(incoming, edge.to, edge);
-    }
-  }
-
-  return {
-    format: "graphvault-index",
-    version: 1,
-    transactionId,
-    createdAt: new Date().toISOString(),
-    envelopeHash: indexEnvelopeHash(envelope),
-    nodeCount: Object.keys(envelope.nodes).length,
-    mode: options.mode === "configured" ? "configured" : "auto",
-    indexedProperties: options.properties,
-    byType: mapToRecord(byType),
-    byProperty: mapToRecord(byProperty),
-    outgoing: mapToRecord(outgoing),
-    incoming: mapToRecord(incoming),
-  };
-}
-
-function adminIndexStatus(
-  options: ResolvedAdminIndexOptions,
-  record: AdminStorageIndexRecord | undefined,
-  transactionId: number,
-): AdminIndexStatus {
-  if (options.mode === "off") {
-    return { enabled: false, mode: "off", consistency: options.consistency, nodeCount: 0, propertyKeys: 0, edgeCount: 0, source: "disabled" };
-  }
-  if (!record) {
-    return { enabled: true, mode: options.mode, consistency: options.consistency, nodeCount: 0, propertyKeys: 0, edgeCount: 0, source: "missing" };
-  }
-  return {
-    enabled: true,
-    mode: options.mode,
-    consistency: options.consistency,
-    transactionId: record.transactionId,
-    nodeCount: record.nodeCount,
-    propertyKeys: Object.keys(record.byProperty).length,
-    edgeCount: Object.values(record.outgoing).reduce((count, edges) => count + edges.length, 0),
-    source: record.transactionId === transactionId ? "storage" : "stale",
-  };
-}
-
-function normalizeIndexDefinitions(properties: Array<string | AdminIndexDefinition>): AdminIndexDefinition[] {
-  const seen = new Set<string>();
-  const normalized: AdminIndexDefinition[] = [];
-  for (const property of properties) {
-    const definition = typeof property === "string" ? { path: property } : property;
-    const path = definition.path?.trim();
-    const type = definition.type?.trim();
-    if (!path) continue;
-    const key = propertyKey(type || undefined, path);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    normalized.push(type ? { type, path } : { path });
-  }
-  return normalized;
-}
-
-function configuredPropertyKeys(properties: AdminIndexDefinition[]): Set<string> {
-  return new Set(properties.map((property) => propertyKey(property.type, property.path)));
-}
-
-function propertyKey(type: string | undefined, path: string): string {
-  return `${type ?? "*"}\u0000${path}`;
-}
-
-function propertyIndexKey(type: string | undefined, path: string, value: unknown): string {
-  return `${type ?? "*"}\u0000${path}\u0000${stableValueKey(value)}`;
-}
-
-function indexProperty(index: Map<string, string[]>, type: string | undefined, path: string, value: unknown, objectId: string): void {
-  append(index, propertyIndexKey(undefined, path, value), objectId);
-  if (type) {
-    append(index, propertyIndexKey(type, path, value), objectId);
-  }
-}
-
-function append<T>(map: Map<string, T[]>, key: string, value: T): void {
-  const list = map.get(key) ?? [];
-  list.push(value);
-  map.set(key, list);
-}
-
-function mapToRecord<T>(map: ReadonlyMap<string, readonly T[]>): Record<string, T[]> {
-  return Object.fromEntries([...map.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([key, value]) => [key, [...value]]));
-}
-
-function indexEnvelopeHash(envelope: SerializedEnvelope): string {
-  return createHash("sha256").update(JSON.stringify({ format: envelope.format, version: envelope.version, root: envelope.root, nodes: envelope.nodes })).digest("hex");
-}
-
-function encodedValueToJs(value: EncodedValue): unknown {
-  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
-  if ("$ref" in value) return { $ref: value.$ref };
-  if (value.$type === "undefined") return undefined;
-  if (value.$type === "number") return value.value === "NaN" ? Number.NaN : value.value === "Infinity" ? Infinity : value.value === "-Infinity" ? -Infinity : -0;
-  if (value.$type === "bigint") return BigInt(value.value);
-  if (value.$type === "date" || value.$type === "buffer" || value.$type === "arraybuffer" || value.$type === "sharedarraybuffer" || value.$type === "dataview" || value.$type === "typedarray") return value.value;
-  if (value.$type === "regexp") return `/${value.source}/${value.flags}`;
-  if (value.$type === "url" || value.$type === "urlsearchparams") return value.value;
-  if (value.$type === "symbol") return value.key ? `Symbol(${value.key})` : "Symbol()";
-  return value.message;
-}
-
-function stableValueKey(value: unknown): string {
-  if (typeof value === "bigint") return `bigint:${value.toString()}`;
-  if (value && typeof value === "object") return JSON.stringify(value);
-  return `${typeof value}:${String(value)}`;
-}
-
-function referencedEdges(from: string, node: EncodedNode): AdminIndexEdge[] {
-  const edges: AdminIndexEdge[] = [];
-  visitEncodedNode(node, (path, value) => {
-    if (value && typeof value === "object" && "$ref" in value) {
-      edges.push({ from, to: value.$ref, path, label: edgeLabel(path) });
-    }
-  });
-  return edges;
-}
-
-function visitEncodedNode(node: EncodedNode, visit: (path: string, value: EncodedValue) => void): void {
-  if (node.kind === "array" || node.kind === "set") {
-    node.items.forEach((value, index) => visit(`[${index}]`, value));
-  } else if (node.kind === "map") {
-    node.entries.forEach(([key, value], index) => {
-      visit(`entries[${index}].key`, key);
-      visit(`entries[${index}].value`, value);
-    });
-  } else if (node.kind === "object") {
-    Object.entries(node.props).forEach(([key, value]) => visit(key, value));
-    node.symbolProps?.forEach(([key, value], index) => {
-      visit(`symbolProps[${index}].key`, key);
-      visit(`symbolProps[${index}].value`, value);
-    });
-  }
-}
-
-function edgeLabel(path: string): string {
-  const end = Math.min(...[path.indexOf("["), path.indexOf(".")].filter((value) => value >= 0));
-  return Number.isFinite(end) ? path.slice(0, end) : path;
 }
 
 function summarizeRecord(record: AdminStorageIndexRecord): AdminIndexRecordSummary {
@@ -309,7 +114,130 @@ function summarizeRecord(record: AdminStorageIndexRecord): AdminIndexRecordSumma
     mode: record.mode,
     envelopeHash: record.envelopeHash,
     indexedProperties: record.indexedProperties,
+    advancedDefinitions: record.advanced?.definitions.length ?? 0,
   };
+}
+
+function effectiveAdminIndexOptions(options: ResolvedAdminIndexOptions, record: AdminStorageIndexRecord | undefined): ResolvedAdminIndexOptions {
+  if (!record || options.mode === "off") {
+    return options;
+  }
+  const definitions = record.advanced?.definitions ?? [];
+  return {
+    mode: record.mode,
+    consistency: options.consistency,
+    properties: record.indexedProperties,
+    advanced: {
+      composites: definitions.filter((definition) => definition.kind === "composite" && definition.paths?.length).map((definition) => ({
+        ...(definition.name ? { name: definition.name } : {}),
+        ...(definition.type ? { type: definition.type } : {}),
+        paths: definition.paths ?? [],
+        ...(definition.unique ? { unique: definition.unique } : {}),
+        ...(definition.sparse ? { sparse: definition.sparse } : {}),
+        ...(definition.partial ? { partial: definition.partial } : {}),
+      })),
+      ranges: definitions.filter((definition) => definition.kind === "range" && definition.path).map((definition) => ({
+        ...(definition.name ? { name: definition.name } : {}),
+        ...(definition.type ? { type: definition.type } : {}),
+        path: definition.path ?? "",
+        ...(definition.sparse ? { sparse: definition.sparse } : {}),
+        ...(definition.partial ? { partial: definition.partial } : {}),
+      })),
+      text: definitions.filter((definition) => definition.kind === "text" && definition.path).map((definition) => ({
+        ...(definition.name ? { name: definition.name } : {}),
+        ...(definition.type ? { type: definition.type } : {}),
+        path: definition.path ?? "",
+        ...(definition.caseSensitive ? { caseSensitive: definition.caseSensitive } : {}),
+        ...(definition.minGram ? { minGram: definition.minGram } : {}),
+        ...(definition.maxGram ? { maxGram: definition.maxGram } : {}),
+        ...(definition.sparse ? { sparse: definition.sparse } : {}),
+        ...(definition.partial ? { partial: definition.partial } : {}),
+      })),
+      fullText: definitions.filter((definition) => definition.kind === "fullText" && definition.path).map((definition) => ({
+        ...(definition.name ? { name: definition.name } : {}),
+        ...(definition.type ? { type: definition.type } : {}),
+        path: definition.path ?? "",
+        ...(definition.caseSensitive ? { caseSensitive: definition.caseSensitive } : {}),
+        ...(definition.sparse ? { sparse: definition.sparse } : {}),
+        ...(definition.partial ? { partial: definition.partial } : {}),
+      })),
+      unique: definitions.filter((definition) => definition.kind === "unique" && (definition.path || definition.paths?.length)).map((definition) => ({
+        ...(definition.name ? { name: definition.name } : {}),
+        ...(definition.type ? { type: definition.type } : {}),
+        ...(definition.path ? { path: definition.path } : {}),
+        ...(definition.paths?.length ? { paths: definition.paths } : {}),
+        ...(definition.sparse ? { sparse: definition.sparse } : {}),
+        ...(definition.partial ? { partial: definition.partial } : {}),
+      })),
+      expressions: definitions.filter((definition) => definition.kind === "expression" && definition.expression).map((definition) => ({
+        ...(definition.name ? { name: definition.name } : {}),
+        ...(definition.type ? { type: definition.type } : {}),
+        expression: definition.expression ?? { fn: "lower", path: "" },
+        ...(definition.unique ? { unique: definition.unique } : {}),
+        ...(definition.sparse ? { sparse: definition.sparse } : {}),
+        ...(definition.partial ? { partial: definition.partial } : {}),
+      })),
+    },
+  };
+}
+
+function summarizeAdvancedDefinitions(record: AdminStorageIndexRecord | undefined): AdminAdvancedIndexSummary[] {
+  if (!record?.advanced) {
+    return [];
+  }
+  return record.advanced.definitions.map((definition) => {
+    const statistics = record.advanced?.statistics[definition.name];
+    return {
+      name: definition.name,
+      kind: definition.kind,
+      target: advancedTarget(definition),
+      keys: advancedKeyCount(record, definition.name, definition.kind),
+      entries: statistics?.entries ?? 0,
+      selectivity: statistics?.selectivity ?? 0,
+      maxBucketSize: statistics?.maxBucketSize ?? 0,
+    };
+  });
+}
+
+function summarizeAdvancedStatistics(record: AdminStorageIndexRecord | undefined): AdminIndexDetails["advancedStatistics"] {
+  return Object.entries(record?.advanced?.statistics ?? {})
+    .map(([name, statistics]) => ({ name, ...statistics }))
+    .sort((left, right) => right.entries - left.entries || left.name.localeCompare(right.name))
+    .slice(0, 24);
+}
+
+function advancedTarget(definition: NonNullable<AdminStorageIndexRecord["advanced"]>["definitions"][number]): string {
+  if (definition.paths?.length) {
+    return `${definition.type ? `${definition.type}.` : ""}${definition.paths.join(" + ")}`;
+  }
+  if (definition.path) {
+    return `${definition.type ? `${definition.type}.` : ""}${definition.path}`;
+  }
+  if (definition.expression) {
+    return `${definition.expression.fn}(${definition.type ? `${definition.type}.` : ""}${definition.expression.path})`;
+  }
+  return "-";
+}
+
+function advancedKeyCount(record: AdminStorageIndexRecord, name: string, kind: string): number {
+  const advanced = record.advanced;
+  if (!advanced) return 0;
+  switch (kind) {
+    case "composite":
+      return Object.keys(advanced.composite[name] ?? {}).length;
+    case "range":
+      return advanced.range[name]?.length ?? 0;
+    case "text":
+      return Object.keys(advanced.text[name] ?? {}).length;
+    case "fullText":
+      return Object.keys(advanced.fullText[name] ?? {}).length;
+    case "unique":
+      return Object.keys(advanced.unique[name] ?? {}).length;
+    case "expression":
+      return Object.keys(advanced.expression[name] ?? {}).length;
+    default:
+      return 0;
+  }
 }
 
 function topEntries(record: Record<string, readonly unknown[]>, kind: string): Array<{ key: string; count: number }> {
