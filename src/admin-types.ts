@@ -4,6 +4,8 @@ import type {
   ObjectRecord,
   StorageTarget,
   TransactionRecord,
+  StorageConstraintMode,
+  StorageConstraintRecord,
   TypeDictionary,
   VerificationResult,
 } from "@sprengmeister/graphvault/internal/core/types";
@@ -40,6 +42,7 @@ export interface AdminSummary {
   typeDictionary?: TypeDictionary;
   hardening: AdminStorageHardening;
   indexes?: AdminIndexDetails;
+  constraints?: AdminConstraintDetails;
   operations: AdminOperationalStatus;
   productionSafety: AdminProductionSafety;
   verification?: VerificationResult;
@@ -67,6 +70,17 @@ export interface AdminLibraryCompatibility {
   recommendedVersion: string;
   status: "ok" | "warning";
   warnings: string[];
+}
+
+export interface AdminConstraintDetails {
+  source: "storage" | "missing" | "disabled";
+  mode: StorageConstraintMode;
+  transactionId?: number;
+  definitionCount: number;
+  violationCount: number;
+  checkedObjects: number;
+  checkedConstraints: number;
+  record?: StorageConstraintRecord;
 }
 
 export type AdminProductionSafetyStatus = "production-ready" | "warning" | "unsafe";

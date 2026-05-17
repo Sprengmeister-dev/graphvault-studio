@@ -7,8 +7,6 @@
 
 GraphVault Studio is the graphical admin client for [GraphVault](https://github.com/Sprengmeister-dev/graphvault-library) stores. It lets you inspect, search, verify, maintain, back up, and carefully edit object graph data without pretending the store is a table database.
 
-![GraphVault Studio screenshot](./assets/studio-screenshot.png)
-
 ```bash
 git clone https://github.com/Sprengmeister-dev/graphvault-studio.git
 cd graphvault-studio
@@ -42,11 +40,12 @@ It is deliberately generic. It does not assume customers, orders, tickets, CMS p
 - support for objects with multiple direct parents
 - paged object browser for large stores
 - depth-limited graph/subtree view for large stores and REST-style graph slices
-- persistent index workbench with freshness status, advanced index families, discovered candidates, statistics, disable/rebuild controls, and GraphVault Library 0.2.8 index format support
+- persistent index workbench with freshness status, advanced index families, discovered candidates, statistics, disable/rebuild controls, and GraphVault Library 0.2.9 index format support
+- constraint workbench for required, type, enum, min/max, unique, and reference-existence rules persisted by GraphVault Library 0.2.9
 - GVQL query console for graph queries and batch-update previews
 - editable primitive fields with preview and confirmation-token safety
 - reads and writes versioned GraphVault object records used by crash-safe 0.2+ stores
-- admin mutations use writer locks, WAL prepare/commit records, and fencing-token validation when the installed GraphVault Library supports it
+- admin mutations use writer locks, WAL prepare/commit records, fencing-token validation, persisted index refresh, and storage constraint enforcement when the installed GraphVault Library supports it
 - admin mutations preserve GraphVault's SHA-256 transaction hash chain for audit-oriented stores
 - direct edits and committed GVQL updates can attach actor, reason, source, and trace metadata to the transaction record
 - operational hardening KPIs and an Operations view for WAL mode, pending WAL recovery, writer lock status, mutation mode, and latest transaction
@@ -140,7 +139,7 @@ GRAPHVAULT_ADMIN_ROLE_TOKEN=secret npx graphvault-studio \
   --confirm-token "$(openssl rand -hex 16)"
 ```
 
-Studio mutation commits are written through the same storage-level safety shape expected from GraphVault deployments: writer lock, WAL prepare, data write, WAL commit marker, transaction journal, parent index, current pointer, and manifest publish as the final visibility step. With GraphVault Library 0.2 or newer, fencing tokens prevent stale recovered writers from publishing or releasing newer locks.
+Studio mutation commits are written through the same storage-level safety shape expected from GraphVault deployments: writer lock, constraint validation, WAL prepare, data write, WAL commit marker, transaction journal, parent index, index refresh, constraint metadata refresh, current pointer, and manifest publish as the final visibility step. With GraphVault Library 0.2 or newer, fencing tokens prevent stale recovered writers from publishing or releasing newer locks.
 
 Then open:
 
@@ -152,6 +151,7 @@ http://127.0.0.1:4177
 
 - [GVQL examples](./docs/GVQL.md) - ready-to-run query and mutation-preview examples for Studio.
 - [Remote and custom storage](./docs/REMOTE_STORAGE.md) - programmatic server setup with HTTP, S3-compatible, SQL, or custom targets.
+- [0.1.11 release notes](./docs/RELEASE_NOTES_0.1.11.md) - Constraint Workbench and GraphVault Library 0.2.9 support.
 - [Release notes](./docs/RELEASE_NOTES_0.1.0.md) - package overview for the first public release.
 - [Publishing checklist](./docs/PUBLISHING.md) - local release checks, tagging, npm provenance, and GitHub topics.
 

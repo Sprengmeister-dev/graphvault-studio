@@ -45,17 +45,28 @@ import { execFileSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EmbeddedStorage } from "@sprengmeister/graphvault";
+import { EmbeddedStorage, GraphVaultRequired, GraphVaultUnique } from "@sprengmeister/graphvault";
 import { StorageAdminClient, startAdminServer } from "graphvault-studio";
 
 const storageDirectory = await mkdtemp(join(tmpdir(), "graphvault-studio-package-store-"));
 
+class PackageDocument {
+  constructor(id, title, status) {
+    this.id = id;
+    this.title = title;
+    this.status = status;
+  }
+}
+GraphVaultRequired()(PackageDocument.prototype, "id");
+GraphVaultUnique()(PackageDocument.prototype, "id");
+
 try {
   const storage = await EmbeddedStorage.start({
     storageDirectory,
+    types: [{ name: "PackageDocument", ctor: PackageDocument }],
     rootFactory: () => ({
       workspace: "Package smoke",
-      documents: [{ id: "doc-1", title: "Install verification", status: "ready" }],
+      documents: [new PackageDocument("doc-1", "Install verification", "ready")],
     }),
   });
   await storage.storeRoot();
@@ -67,7 +78,12 @@ try {
   const summary = await client.summary({ verify: false });
   assert.equal(summary.objectCount >= 2, true);
   assert.equal(summary.library.packageName, "@sprengmeister/graphvault");
-  assert.equal(summary.library.recommendedVersion, "0.2.8");
+  assert.equal(summary.library.recommendedVersion, "0.2.9");
+  assert.equal(summary.constraints.source, "storage");
+  assert.equal(summary.constraints.definitionCount, 1);
+
+  const constraints = await client.constraints();
+  assert.equal(constraints.record.validation.ok, true);
 
   const rootReference = await client.rootReference();
   assert.equal(typeof rootReference.rootObjectId, "string");

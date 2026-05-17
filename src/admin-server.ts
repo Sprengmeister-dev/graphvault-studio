@@ -79,6 +79,9 @@ async function route(client: StorageAdminClient, options: AdminServerOptions, re
   if (request.method === "GET" && url.pathname === "/api/indexes") {
     return sendJson(response, 200, await client.indexes());
   }
+  if (request.method === "GET" && url.pathname === "/api/constraints") {
+    return sendJson(response, 200, await client.constraints());
+  }
   if (request.method === "GET" && url.pathname === "/api/root") {
     return sendJson(response, 200, await client.rootReference());
   }

@@ -1,4 +1,5 @@
 import { STUDIO_GVQL_EXAMPLES } from "./gvql-examples.js";
+import { ADMIN_CONSTRAINT_SCRIPT, ADMIN_CONSTRAINT_STYLE } from "./admin-constraints-ui.js";
 import { ADMIN_INDEX_SCRIPT, ADMIN_INDEX_STYLE } from "./admin-index-ui.js";
 
 export const ADMIN_HTML = `<!doctype html>
@@ -131,6 +132,7 @@ export const ADMIN_HTML = `<!doctype html>
       .list { max-height: none; }
     }
 ${ADMIN_INDEX_STYLE}
+${ADMIN_CONSTRAINT_STYLE}
   </style>
 </head>
 <body>
@@ -143,6 +145,7 @@ ${ADMIN_INDEX_STYLE}
         <button class="nav-btn" data-view="objects" onclick="showObjects()">Objects</button>
         <button class="nav-btn" data-view="graph" onclick="showGraph()">Graph</button>
         <button class="nav-btn" data-view="indexes" onclick="showIndexes()">Indexes</button>
+        <button class="nav-btn" data-view="constraints" onclick="showConstraints()">Constraints</button>
         <button class="nav-btn" data-view="gvql" onclick="showGvql()">GVQL</button>
         <button class="nav-btn" data-view="operations" onclick="showOperations()">Operations</button>
         <button class="nav-btn" data-view="types" onclick="showTypes()">Type Dictionary</button>
@@ -241,6 +244,7 @@ OFFSET 0</textarea>
       objects: ['Objects', 'Browse graph records with type, preview, and transaction metadata.'],
       graph: ['Object Graph', 'Depth-limited graph slice for large stores and API-style inspection.'],
       indexes: ['Index Workbench', 'Persistent graph, property, and advanced index administration.'],
+      constraints: ['Constraint Workbench', 'Storage-wide field invariants and latest validation result.'],
       gvql: ['GVQL Query', 'Run graph pattern queries and preview batch updates.'],
       operations: ['Operations', 'Storage hardening, WAL state, and recovery readiness.'],
       types: ['Type Dictionary', 'Registered runtime types and schema metadata.'],
@@ -465,6 +469,9 @@ OFFSET 0</textarea>
       }
       if (summary.indexes) {
         rows.push({ columns: [summary.indexes.status.source, 'indexes', summary.indexes.status.propertyKeys + ' property keys', summary.indexes.status.edgeCount + ' edges'], onclick: () => showIndexes() });
+      }
+      if (summary.constraints) {
+        rows.push({ columns: [summary.constraints.source, 'constraints', summary.constraints.definitionCount + ' definitions', summary.constraints.violationCount + ' violations'], onclick: () => showConstraints() });
       }
       if (summary.productionSafety) {
         rows.push({ columns: [summary.productionSafety.status, 'production safety', summary.productionSafety.score + ' score', summary.productionSafety.issues.length + ' issues'], onclick: () => show(summary.productionSafety) });
@@ -991,6 +998,7 @@ OFFSET 0</textarea>
       ].filter(Boolean).join(' | ').slice(0, 220);
     }
 ${ADMIN_INDEX_SCRIPT}
+${ADMIN_CONSTRAINT_SCRIPT}
     async function showSearch() {
       setView('search');
       listTitle.textContent = 'Search results';

@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AdminLibraryCompatibility } from "./admin-types.js";
 
-const RECOMMENDED_GRAPHVAULT_VERSION = "0.2.8";
+const RECOMMENDED_GRAPHVAULT_VERSION = "0.2.9";
 
 export function graphvaultLibraryCompatibility(): AdminLibraryCompatibility {
   const installedVersion = readInstalledGraphVaultVersion();

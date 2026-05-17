@@ -3,6 +3,7 @@ import { copyStorageTargetTree, LocalFilesystemTarget } from "@sprengmeister/gra
 import { StorageLayout } from "@sprengmeister/graphvault/internal/storage/storage-layout";
 import { StorageReader } from "@sprengmeister/graphvault/internal/storage/storage-reader";
 import { StorageWriter } from "@sprengmeister/graphvault/internal/storage/storage-writer";
+import { validateStorageConstraints } from "@sprengmeister/graphvault/internal/storage/storage-constraints";
 import { verifyStorage } from "@sprengmeister/graphvault/internal/storage/storage-verifier";
 import { buildParentIndexRecord } from "@sprengmeister/graphvault/internal/storage/storage-parent-index";
 import { executeGvqlStatement, parseGvql } from "@sprengmeister/graphvault/internal/gvql/gvql";
@@ -40,6 +41,8 @@ import type {
   ObjectRecord,
   ParentIndexRecord,
   SerializedEnvelope,
+  StorageConstraintRecord,
+  StorageConstraintValidationResult,
   StorageManifest,
   StorageTarget,
   StorageTargetLock,
@@ -54,6 +57,7 @@ import type {
   AdminGraph,
   AdminGraphEdge,
   AdminGraphNode,
+  AdminConstraintDetails,
   AdminHierarchyPath,
   AdminHierarchyPathItem,
   AdminMutation,
@@ -105,6 +109,7 @@ export type {
   AdminGraph,
   AdminGraphEdge,
   AdminGraphNode,
+  AdminConstraintDetails,
   AdminHierarchyPath,
   AdminHierarchyPathItem,
   AdminMutation,
@@ -150,6 +155,7 @@ export class StorageAdminClient {
     const verification = options.verify === false ? undefined : await this.verify();
     const hardening = this.hardening();
     const indexes = await this.indexes(manifest);
+    const constraints = await this.constraints();
     const operations = await this.operations(manifest, latestTransaction);
     return {
       storageDirectory: this.options.storageDirectory,
@@ -161,6 +167,7 @@ export class StorageAdminClient {
       ...(typeDictionary ? { typeDictionary } : {}),
       hardening,
       indexes,
+      constraints,
       operations,
       productionSafety: this.productionSafety(hardening, operations, verification),
       ...(verification ? { verification } : { verificationSkipped: true }),
@@ -368,6 +375,30 @@ export class StorageAdminClient {
     return describeAdminIndex(this.layout, this.indexOptions, await readAdminIndexRecord(this.target, this.layout), currentManifest.transactionId);
   }
 
+  async constraints(): Promise<AdminConstraintDetails> {
+    const record = await this.reader.readConstraintRecord();
+    if (!record) {
+      return {
+        source: "missing",
+        mode: "off",
+        definitionCount: 0,
+        violationCount: 0,
+        checkedObjects: 0,
+        checkedConstraints: 0,
+      };
+    }
+    return {
+      source: record.mode === "off" ? "disabled" : "storage",
+      mode: record.mode,
+      transactionId: record.transactionId,
+      definitionCount: record.definitions.length,
+      violationCount: record.validation.violations.length,
+      checkedObjects: record.validation.checkedObjects,
+      checkedConstraints: record.validation.checkedConstraints,
+      record,
+    };
+  }
+
   async rebuildIndexes(options?: boolean | AdminIndexOptions): Promise<AdminIndexDetails> {
     const resolved = resolveAdminIndexOptions(options ?? this.indexOptions);
     const lock = await this.acquireWriteLock();
@@ -451,6 +482,7 @@ export class StorageAdminClient {
       const transactionId = expectedTransactionId + 1;
       const snapshotFile = `snapshot-${String(transactionId).padStart(12, "0")}.json`;
       const objectIds = Object.keys(envelope.nodes).sort((a, b) => Number(a) - Number(b));
+      const constraints = await this.validateConstraintsForCommit(envelope, objectIds);
       const prepareFile = `transaction-${String(transactionId).padStart(12, "0")}.prepare.json`;
       if (this.transactionLogEnabled) {
         await this.writeWalJson(prepareFile, {
@@ -500,6 +532,8 @@ export class StorageAdminClient {
       await this.writer.writeParentIndex(envelope, transactionId);
       await this.assertLockValid(lock);
       await writeAdminIndexRecord(this.target, this.layout, envelope, transactionId, this.indexOptions);
+      await this.assertLockValid(lock);
+      await this.writeConstraintRecordForCommit(envelope, transactionId, constraints);
       await this.assertLockValid(lock);
       await this.target.writeTextAtomic(this.layout.currentFile, snapshotFile);
       await writeAdminManifest(this.target, this.layout, envelope, transactionId, record.transactionHash);
@@ -742,6 +776,51 @@ export class StorageAdminClient {
       }
     }
     return this.parentIndex;
+  }
+
+  private async validateConstraintsForCommit(
+    envelope: SerializedEnvelope,
+    objectIds: readonly string[],
+  ): Promise<{ record: StorageConstraintRecord; validation: StorageConstraintValidationResult } | undefined> {
+    const record = await this.reader.readConstraintRecord();
+    if (!record) {
+      return undefined;
+    }
+    const validation = validateStorageConstraints({
+      envelope,
+      options: { mode: record.mode, definitions: record.definitions },
+      objectIds,
+      throwOnViolation: true,
+    });
+    return { record, validation };
+  }
+
+  private async writeConstraintRecordForCommit(
+    envelope: SerializedEnvelope,
+    transactionId: number,
+    constraints: { record: StorageConstraintRecord; validation: StorageConstraintValidationResult } | undefined,
+  ): Promise<void> {
+    if (!constraints) {
+      return;
+    }
+    if (constraints.record.mode === "off" || constraints.record.definitions.length === 0) {
+      if (await this.target.exists(this.layout.constraintFile)) {
+        await this.target.remove(this.layout.constraintFile);
+      }
+      return;
+    }
+    await this.writer.writeJson(this.layout.constraintFile, {
+      format: "graphvault-constraints",
+      version: 1,
+      transactionId,
+      createdAt: new Date().toISOString(),
+      mode: constraints.record.mode,
+      definitions: constraints.record.definitions,
+      validation: constraints.validation ?? validateStorageConstraints({
+        envelope,
+        options: { mode: constraints.record.mode, definitions: constraints.record.definitions },
+      }),
+    } satisfies StorageConstraintRecord);
   }
 }
 

@@ -3,7 +3,16 @@ import { execFileSync } from "node:child_process";
 import { copyFile, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EmbeddedStorage } from "@sprengmeister/graphvault";
+import {
+  EmbeddedStorage,
+  GraphVaultEnum,
+  GraphVaultMin,
+  GraphVaultReferenceExists,
+  GraphVaultRequired,
+  GraphVaultType,
+  GraphVaultUnique,
+  StorageConstraintViolationError,
+} from "@sprengmeister/graphvault";
 import { StorageAdminClient, startAdminServer } from "../dist/admin.js";
 import { parseAdminCliArgs, runDoctor } from "../dist/admin-cli.js";
 
@@ -37,6 +46,16 @@ const types = [
   { name: "Document", ctor: Document },
 ];
 
+GraphVaultRequired()(Workspace.prototype, "name");
+GraphVaultRequired()(Owner.prototype, "id");
+GraphVaultUnique()(Owner.prototype, "id");
+GraphVaultRequired()(Document.prototype, "id");
+GraphVaultType("string")(Document.prototype, "title");
+GraphVaultUnique()(Document.prototype, "id");
+GraphVaultEnum(["draft", "published", "archived", "review"])(Document.prototype, "status");
+GraphVaultMin(0)(Document.prototype, "views");
+GraphVaultReferenceExists()(Document.prototype, "owner");
+
 const storageDirectory = await mkdtemp(join(tmpdir(), "graphvault-studio-smoke-"));
 
 try {
@@ -67,11 +86,19 @@ try {
   assert.equal(summary.library.packageName, "@sprengmeister/graphvault");
   assert.equal(typeof summary.library.recommendedVersion, "string");
   assert.equal(["ok", "warning"].includes(summary.library.status), true);
+  assert.equal(summary.constraints.source, "storage");
+  assert.equal(summary.constraints.definitionCount >= 6, true);
+  assert.equal(summary.constraints.violationCount, 0);
   assert.equal(["production-ready", "warning"].includes(summary.productionSafety.status), true);
   assert.equal(summary.productionSafety.hashChain, "present");
   assert.equal(summary.productionSafety.issues.some((issue) => issue.code === "stale-lock-recovery-disabled"), false);
   assert.equal(summary.productionSafety.issues.some((issue) => issue.code === "hash-chain-missing"), false);
   assert.equal(summary.indexes.status.source, "storage");
+
+  const constraints = await client.constraints();
+  assert.equal(constraints.source, "storage");
+  assert.equal(constraints.record.format, "graphvault-constraints");
+  assert.equal(constraints.record.validation.ok, true);
 
   const rebuiltIndex = await client.rebuildIndexes({
     mode: "configured",
@@ -369,6 +396,13 @@ try {
   const createdField = await client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-3" RETURN doc.title AS title, doc.views AS views');
   assert.equal(createdField.kind, "select");
   assert.deepEqual(createdField.rows, [{ title: "Release checklist", views: 9 }]);
+  await assert.rejects(
+    () => client.gvql('MATCH (doc:Document) WHERE doc.id = "doc-3" SET doc.id = "doc-1" RETURN doc.id AS id'),
+    StorageConstraintViolationError,
+  );
+  const postConstraintRecord = await client.constraints();
+  assert.equal(postConstraintRecord.record.transactionId > constraints.record.transactionId, true);
+  assert.equal(postConstraintRecord.record.validation.ok, true);
   const walFiles = await readdir(join(storageDirectory, "wal"));
   assert.equal(walFiles.some((file) => file.endsWith(".prepare.json")), true);
   assert.equal(walFiles.some((file) => file.endsWith(".commit.json")), true);
@@ -509,6 +543,11 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(indexesResponse.status, 200);
     const indexes = await indexesResponse.json();
     assert.equal(["storage", "missing", "stale"].includes(indexes.status.source), true);
+    const constraintsResponse = await fetch(`${server.url}/api/constraints`);
+    assert.equal(constraintsResponse.status, 200);
+    const constraints = await constraintsResponse.json();
+    assert.equal(constraints.source, "storage");
+    assert.equal(constraints.definitionCount > 0, true);
     const rebuildResponse = await fetch(`${server.url}/api/indexes/rebuild`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -529,6 +568,8 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(html.includes("graphRoot"), true);
     assert.equal(html.includes("Load Graph Slice"), true);
     assert.equal(html.includes("Index Workbench"), true);
+    assert.equal(html.includes("Constraint Workbench"), true);
+    assert.equal(html.includes("showConstraints"), true);
     assert.equal(html.includes("Rebuild persistent index"), true);
     assert.equal(html.includes('id="gvqlExamples"'), true);
     assert.equal(html.includes("Scalar functions"), true);

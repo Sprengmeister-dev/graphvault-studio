@@ -1,6 +1,6 @@
 {
   "name": "graphvault-studio",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Graphical admin client for GraphVault object graph stores.",
   "repository": {
     "type": "git",
@@ -60,7 +60,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@sprengmeister/graphvault": "^0.2.8"
+    "@sprengmeister/graphvault": "^0.2.9"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",

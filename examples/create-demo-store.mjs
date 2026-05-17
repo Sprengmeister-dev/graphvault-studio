@@ -1,5 +1,13 @@
 import { rm } from "node:fs/promises";
-import { EmbeddedStorage } from "@sprengmeister/graphvault";
+import {
+  EmbeddedStorage,
+  GraphVaultEnum,
+  GraphVaultMin,
+  GraphVaultReferenceExists,
+  GraphVaultRequired,
+  GraphVaultType,
+  GraphVaultUnique,
+} from "@sprengmeister/graphvault";
 
 class Workspace {
   constructor(name) {
@@ -39,6 +47,20 @@ class Document {
     this.createdAt = new Date(1_765_000_000_000 + views * 60_000);
   }
 }
+
+GraphVaultRequired()(Workspace.prototype, "name");
+GraphVaultRequired()(Owner.prototype, "id");
+GraphVaultUnique()(Owner.prototype, "id");
+GraphVaultRequired()(Owner.prototype, "name");
+GraphVaultRequired()(Category.prototype, "slug");
+GraphVaultUnique()(Category.prototype, "slug");
+GraphVaultRequired()(Document.prototype, "id");
+GraphVaultUnique()(Document.prototype, "id");
+GraphVaultType("string")(Document.prototype, "title");
+GraphVaultEnum(["published", "review", "archived"])(Document.prototype, "status");
+GraphVaultMin(0)(Document.prototype, "views");
+GraphVaultReferenceExists()(Document.prototype, "owner");
+GraphVaultReferenceExists()(Document.prototype, "category");
 
 const storageDirectory = process.argv[2] ?? "./graphvault-studio-demo-store";
 await rm(storageDirectory, { recursive: true, force: true });
