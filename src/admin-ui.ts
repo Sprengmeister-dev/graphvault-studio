@@ -240,7 +240,7 @@ OFFSET 0</textarea>
       overview: ['Storage Overview', 'Health, object count, latest transaction, and current snapshot.'],
       objects: ['Objects', 'Browse graph records with type, preview, and transaction metadata.'],
       graph: ['Object Graph', 'Depth-limited graph slice for large stores and API-style inspection.'],
-      indexes: ['Index Administration', 'Persistent index status, configuration, and rebuilds.'],
+      indexes: ['Index Workbench', 'Persistent graph, property, and advanced index administration.'],
       gvql: ['GVQL Query', 'Run graph pattern queries and preview batch updates.'],
       operations: ['Operations', 'Storage hardening, WAL state, and recovery readiness.'],
       types: ['Type Dictionary', 'Registered runtime types and schema metadata.'],

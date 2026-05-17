@@ -528,8 +528,8 @@ async function assertAdminServer(storageDirectory) {
     assert.equal(html.includes("library"), true);
     assert.equal(html.includes("graphRoot"), true);
     assert.equal(html.includes("Load Graph Slice"), true);
-    assert.equal(html.includes("Index Administration"), true);
-    assert.equal(html.includes("Rebuild index"), true);
+    assert.equal(html.includes("Index Workbench"), true);
+    assert.equal(html.includes("Rebuild persistent index"), true);
     assert.equal(html.includes('id="gvqlExamples"'), true);
     assert.equal(html.includes("Scalar functions"), true);
     assert.equal(html.includes("CASE update"), true);
